@@ -1,6 +1,7 @@
 library(POE5Rdata)
 data("star5_small")
-?star5_small
+#開啟資料集的說明文件
+?star5_small 
 
 #(a)
 # subset data
