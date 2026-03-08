@@ -1,0 +1,94 @@
+2.22
+```{r}
+load("C:/Users/jaspe/OneDrive/Desktop/R code/poe5rdata/star5_small.rdata")
+data1 <- star5_small
+head(data1)
+```
+(a)
+```{r}
+model_22a <- lm(totalscore ~ small, data = data1)
+print(summary(model_22a))
+```
+(b)
+```{r}
+model_22b_read <- lm(readscore ~ small, data = data1)
+model_22b_math <- lm(readscore ~ small, data = data1)
+print(summary(model_22b_read))
+print(summary(model_22b_math))
+```
+(c)
+```{r}
+model_22c <- lm(totalscore ~ aide, data = data1)
+print(summary(model_22c))
+```
+(d)
+```{r}
+model_22d_read <- lm(readscore ~ aide, data = data1)
+model_22d_math <- lm(mathscore ~ aide, data = data1)
+print(summary(model_22d_read))
+print(summary(model_22d_math))
+```
+2.25
+```{r}
+load("C:/Users/jaspe/OneDrive/Desktop/R code/poe5rdata/cex5_small.rdata")
+data2 <- cex5_small
+head(data2)
+```
+(a)
+```{r}
+print(summary(data2$foodaway))
+```
+
+
+```{r}
+hist(data2$foodaway)
+```
+(b)
+```{r}
+summary(data2$foodaway[data2$advanced == 1])
+```
+```{r}
+summary(data2$foodaway[data2$college == 1])
+```
+
+
+```{r}
+summary(data2$foodaway[data2$advanced == 0 | data2$college == 0])
+```
+(c)
+```{r}
+log_foodaway <- log(data2$foodaway)
+summary(log_foodaway[log_foodaway > 0])
+```
+```{r}
+hist(log_foodaway[log_foodaway > 0])
+```
+(d)
+```{r}
+model_24d <- lm(log(foodaway) ~ income, data = data2[data2$foodaway > 0, ])
+summary(model_24d)
+```
+(e)
+```{r}
+plot(data2$income, log(data2$foodaway), 
+     main = "ln(foodaway) vs Income",
+     xlab = "Income", 
+     ylab = "ln(Foodaway)",
+     pch = 19, col = "blue")
+
+abline(model_24d, col = "red", lwd = 4)
+```
+(f)
+```{r}
+res <- resid(model_24d)
+plot(data2$income[data2$foodaway > 0], res,
+     main = "Residuals vs Income",
+     xlab = "Income",
+     ylab = "Residuals",
+     pch = 19, col = "darkgrey")
+
+abline(h = 0, col = "red", lty = 2)
+```
+
+
+
