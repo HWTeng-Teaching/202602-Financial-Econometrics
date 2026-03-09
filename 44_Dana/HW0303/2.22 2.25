@@ -1,0 +1,68 @@
+#2.22
+load(url("https://www.principlesofeconometrics.com/poe5/data/rdata/star5_small.rdata"))
+#a
+Small_reg <- star5_small[star5_small$regular == 1 | star5_small$small == 1, ]
+mod1 <- lm( totalscore ~ small, data = Small_reg) 
+summary(mod1)
+coef(mod1)[[1]]
+coef(mod1)[[2]]
+
+#b
+mod2 <- lm( readscore ~ small, data = Small_reg) 
+summary(mod2)
+coef(mod2)[[1]]
+coef(mod2)[[2]]
+
+mod3 <- lm( mathscore ~ small, data = Small_reg) 
+summary(mod3)
+coef(mod3)[[1]]
+coef(mod3)[[2]]
+
+#c
+reg_aide <- star5_small[star5_small$regular == 1 | star5_small$aide == 1, ]
+mod4 <- lm( totalscore ~ aide, data = reg_aide) 
+summary(mod4)
+coef(mod4)[[1]]
+coef(mod4)[[2]]
+
+#c
+mod2 <- lm( readscore ~ aide, data = reg_aide) 
+summary(mod5)
+coef(mod5)[[1]]
+coef(mod5)[[2]]
+
+mod6 <- lm( mathscore ~ aide, data = reg_aide) 
+summary(mod3)
+coef(mod6)[[1]]
+coef(mod6)[[2]]
+
+#2.25
+load(url("https://www.principlesofeconometrics.com/poe5/data/rdata/cex5_small.rdata"))
+#a
+hist(cex5_small$foodaway)
+summary(cex5_small$foodaway)
+
+#b
+advanced <- cex5_small[cex5_small$advanced == 1, ]
+summary(advanced$foodaway)
+college <- cex5_small[cex5_small$college == 1, ]
+summary(college$foodaway)
+none <- cex5_small[cex5_small$advanced == 0 & cex5_small$college == 0, ]
+summary(none$foodaway)
+
+#c
+cex5_log <- cex5_small[cex5_small$foodaway > 0, ]
+hist(log(cex5_log$foodaway))
+summary(log(cex5_log$foodaway))
+
+#d
+mod_log <- lm( log(foodaway) ~ income, data = cex5_log) 
+summary(mod_log)
+
+#e
+plot(log(foodaway) ~ income, data = cex5_log)
+abline(mod_log,col="blue")
+
+#f
+resid =  resid(mod_log)
+plot(cex5_log$income, resid)
