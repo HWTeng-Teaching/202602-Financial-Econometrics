@@ -1,0 +1,96 @@
+---
+title: "HW1_314707047_連鈞宥"
+output: html_document
+date: "2026-03-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readxl)
+library(PoEdata)
+```
+
+
+```{r}
+#data("star5")
+#head(star5)
+#data("star")
+#head(star)
+# 找不到資料集star5 & star5_small。only star。
+```
+
+
+```{r}
+# 第22題
+star5 <- read_excel("C:/Users/tiffa/OneDrive/Desktop/eco_fin/star5.xlsx")
+head(star5)
+# a.
+#total(有ABC三種可能且互斥，either A or B = not C。)
+model <- lm(totalscore ~ small, data = star5, subset = (aide == 0))
+summary(model)
+
+# b.
+# read
+model_read <- lm(readscore ~ small, data = star5, subset = (aide == 0))
+summary(model_read)
+# math
+model_math <- lm(mathscore ~ small, data = star5, subset = (aide == 0))
+summary(model_math)
+
+# c.
+model_aide <- lm(totalscore ~ aide, data = star5, subset = (small == 0))
+summary(model_aide)
+
+# d.
+model_read_aide <- lm(readscore ~ aide, data = star5, subset = (small == 0))
+summary(model_read_aide)
+model_math_aide <- lm(mathscore ~ aide, data = star5, subset = (small == 0))
+summary(model_math_aide)
+```
+
+```{r}
+# 第25題
+cex5 <- read_excel("C:/Users/tiffa/OneDrive/Desktop/eco_fin/cex5.xlsx")
+head(cex5)
+# a.
+summary(cex5$foodaway)
+hist(cex5$foodaway, main="Histogram of FOODAWAY")
+
+# b.
+# advanced
+summary(cex5$foodaway[cex5$advanced == 1])
+# college
+summary(cex5$foodaway[cex5$college == 1])
+# no advanced or college
+summary(cex5$foodaway[cex5$advanced == 0 & cex5$college == 0])
+
+# c.
+hist(log(cex5$foodaway[cex5$foodaway > 0]), main="Histogram of ln(FOODAWAY)")
+
+# d.
+model_f <- lm(log(foodaway) ~ income, data = cex5[cex5$foodaway > 0, ])
+summary(model_f)
+
+# e.
+cex5_sub <- cex5[cex5$foodaway > 0, ]
+model_d <- lm(log(foodaway) ~ income, data = cex5_sub)
+plot(cex5_sub$income, log(cex5_sub$foodaway),
+     main = "ln(FOODAWAY) vs INCOME with Fitted Line",
+     xlab = "Income (in $100 units)",
+     ylab = "ln(Food Away Expenditure)",
+     pch = 20, col = "darkgrey")
+abline(model_d, col = "red", lwd = 2)
+
+# f.
+e_hat <- residuals(model_d)
+plot(cex5_sub$income, e_hat,
+     main = "Residuals vs INCOME",
+     xlab = "Income",
+     ylab = "Residuals",
+     pch = 20, col = "blue")
+abline(h = 0, col = "black", lty = 2)
+```
+
