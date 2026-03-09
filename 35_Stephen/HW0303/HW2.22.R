@@ -1,5 +1,6 @@
 #2.22
 
+
 rm(list=ls())
 remotes::install_github("ccolonescu/POE5Rdata", force = TRUE)
 library(POE5Rdata)
@@ -7,6 +8,7 @@ install.packages("stargazer")
 library(stargazer)
 data('star5_small')
 head(star5_small)
+
 
 #2.22 (a)
 table_22_a <- lm(totalscore ~ small, data = star5_small)
@@ -31,3 +33,4 @@ summary(table_22_d1)
 #2.22 (d2)
 table_22_d2 <- lm(mathscore ~ aide, data = star5_small)
 summary(table_22_d2)
+
