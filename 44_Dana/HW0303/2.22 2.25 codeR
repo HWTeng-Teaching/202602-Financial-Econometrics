@@ -25,8 +25,8 @@ summary(mod4)
 coef(mod4)[[1]]
 coef(mod4)[[2]]
 
-#c
-mod2 <- lm( readscore ~ aide, data = reg_aide) 
+#d
+mod5 <- lm( readscore ~ aide, data = reg_aide) 
 summary(mod5)
 coef(mod5)[[1]]
 coef(mod5)[[2]]
