@@ -4,37 +4,26 @@ load(url("https://www.principlesofeconometrics.com/poe5/data/rdata/star5_small.r
 Small_reg <- star5_small[star5_small$regular == 1 | star5_small$small == 1, ]
 mod1 <- lm( totalscore ~ small, data = Small_reg) 
 summary(mod1)
-coef(mod1)[[1]]
-coef(mod1)[[2]]
 
 #b
 mod2 <- lm( readscore ~ small, data = Small_reg) 
 summary(mod2)
-coef(mod2)[[1]]
-coef(mod2)[[2]]
 
 mod3 <- lm( mathscore ~ small, data = Small_reg) 
 summary(mod3)
-coef(mod3)[[1]]
-coef(mod3)[[2]]
 
 #c
 reg_aide <- star5_small[star5_small$regular == 1 | star5_small$aide == 1, ]
 mod4 <- lm( totalscore ~ aide, data = reg_aide) 
 summary(mod4)
-coef(mod4)[[1]]
-coef(mod4)[[2]]
 
 #d
 mod5 <- lm( readscore ~ aide, data = reg_aide) 
 summary(mod5)
-coef(mod5)[[1]]
-coef(mod5)[[2]]
 
 mod6 <- lm( mathscore ~ aide, data = reg_aide) 
-summary(mod3)
-coef(mod6)[[1]]
-coef(mod6)[[2]]
+summary(mod6)
+
 
 #2.25
 load(url("https://www.principlesofeconometrics.com/poe5/data/rdata/cex5_small.rdata"))
