@@ -1,0 +1,223 @@
+---
+title: "HW0303_314707031"
+author: "James"
+date: "2026-03-09"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r load-data}
+load("~/Documents/Financial-Econometrics/Data/star5_small.rdata")
+load("~/Documents/Financial-Econometrics/Data/cex5_small.rdata")
+```
+
+---
+
+# Problem 2.22 
+
+```{r star-str}
+df <- star5_small
+str(df)
+```
+
+## (a) 
+
+```{r 2.22a}
+star_rs <- subset(df, aide == 0)
+reg_a <- lm(totalscore ~ small, data = star_rs)
+summary(reg_a)
+```
+**Interpretation of Estimates:**
+$\text{TOTALSCORE}_i = 916.442 + 12.175 \times \text{SMALL}_i$
+
+- Intercept ($\hat{\beta}_1 = 916.442$): 
+The estimated average total aptitude score for students in regular-sized classes is 916.44.
+
+- Coefficient for SMALL ($\hat{\beta}_2 = 12.175$): 
+Students in small classes score, on average 12.175 points higher on their total aptitude score
+compared to students in regular-sized classes.
+
+- Conclusion: The p-value for the small coefficient is 0.0236. Since this is less than 0.05 significance level, we reject the null hypothesis. We conclude that being in a small class has a statistically significant positive effect on learning (total aptitude scores).
+
+## (b)
+
+```{r 2.22b}
+reg_read <- lm(readscore ~ small, data = star_rs)
+summary(reg_read)
+
+reg_math <- lm(mathscore ~ small, data = star_rs)
+summary(reg_math)
+
+```
+**Observations and Differences:**
+
+- Reading Score: The estimated coefficient for small is 6.924 with a p-value of 0.00151. This indicates that small classes have a highly significant positive effect on reading scores (significant at the 1% level).
+
+- Math Score: The estimated coefficient for small is 5.251 with a p-value of 0.143. Since the p-value is greater than 0.05, the effect of small classes on math scores is not statistically significant.
+
+- Difference: Yes, there is a clear difference. Reducing class size significantly improves reading performance but does not provide statistically significant evidence of improving math performance.
+
+## (c)
+
+```{r 2.22c}
+star_ra <- subset(df, small == 0)
+
+reg_c <- lm(totalscore ~ aide, data = star_ra)
+summary(reg_c)
+```
+**Interpretation of Estimates** 
+$\text{TOTALSCORE}_i = 916.442 + 4.306 \times \text{AIDE}_i$
+
+- Intercept ($\hat{\gamma}_1 = 916.442$): The estimated average total aptitude score for students in regular-sized classes without a teacher aide is 916.44.
+
+- Coefficient for AIDE ($\hat{\gamma}_2 = 4.306$): Students in regular-sized classes with a full-time teacher aide score, on average, 4.306 points higher than those without an aide.
+
+- Conclusion:The p-value for the aide coefficient is 0.389, which is much greater than the 0.05 significance level, we fail to reject the null hypothesis. We conclude that adding a teacher aide to a regular-sized classroom does not have a statistically significant effect on students' overall learning.
+
+
+## (d)
+
+```{r 2.22d}
+reg_d1 <- lm(readscore ~ aide, data = star_ra)
+summary(reg_d1)
+
+reg_d2 <- lm(mathscore ~ aide, data = star_ra)
+summary(reg_d2)
+```
+**Observations and Differences:**
+
+Reading Score: The estimated coefficient for aide is 2.871 with a p-value of 0.161 in a regular-sized class.
+
+Math Score: The estimated coefficient for aide is 1.435 with a p-value of 0.664.
+
+Difference: Both p-values are well above 0.05. Therefore, adding a teacher aide does not significantly improve reading scores nor math scores. There are no major differences observed here, the presence of an aide remains statistically insignificant across all subjects.
+
+# Problem 2.25
+
+```{r cex-str}
+str(cex5_small)
+```
+
+## (a)
+```{r 2.25a}
+summary(cex5_small$foodaway)
+
+cat("Mean:   ", mean(cex5_small$foodaway, na.rm = TRUE), "\n")
+cat("Median: ", median(cex5_small$foodaway, na.rm = TRUE), "\n")
+cat("Q25:    ", quantile(cex5_small$foodaway, 0.25, na.rm = TRUE), "\n")
+cat("Q75:    ", quantile(cex5_small$foodaway, 0.75, na.rm = TRUE), "\n")
+cat("Std Dev:", sd(cex5_small$foodaway, na.rm = TRUE), "\n")
+
+hist(cex5_small$foodaway, breaks = 30, col = "steelblue",
+     main = "Histogram of FOODAWAY",
+     xlab = "FOODAWAY ($/month/person)")
+```
+## (b)
+
+```{r 2.25b}
+# Advanced degree
+adv <- cex5_small$foodaway[as.logical(cex5_small$advanced)]
+cat("=== Advanced Degree ===\n")
+cat("N:     ", length(adv), "\n")
+cat("Mean:  ", mean(adv, na.rm = TRUE), "\n")
+cat("Median:", median(adv, na.rm = TRUE), "\n\n")
+
+# College degree (excluding advanced)
+col <- cex5_small$foodaway[as.logical(cex5_small$college) & !as.logical(cex5_small$advanced)]
+cat("=== College Degree (no advanced) ===\n")
+cat("N:     ", length(col), "\n")
+cat("Mean:  ", mean(col, na.rm = TRUE), "\n")
+cat("Median:", median(col, na.rm = TRUE), "\n\n")
+
+# No college or advanced degree
+nocol <- cex5_small$foodaway[!as.logical(cex5_small$college) & !as.logical(cex5_small$advanced)]
+cat("=== No College/Advanced Degree ===\n")
+cat("N:     ", length(nocol), "\n")
+cat("Mean:  ", mean(nocol, na.rm = TRUE), "\n")
+cat("Median:", median(nocol, na.rm = TRUE), "\n")
+```
+## (c)
+
+```{r 2.25c}
+cex5_small$lnfoodaway <- ifelse(cex5_small$foodaway > 0,
+                                 log(cex5_small$foodaway), NA)
+
+cat("FOODAWAY observations:    ", length(cex5_small$foodaway), "\n")
+cat("ln(FOODAWAY) valid observations:", sum(!is.na(cex5_small$lnfoodaway)), "\n")
+
+summary(cex5_small$lnfoodaway)
+
+hist(cex5_small$lnfoodaway[!is.na(cex5_small$lnfoodaway)],
+     breaks = 30, col = "coral",
+     main = "Histogram of ln(FOODAWAY)",
+     xlab = "ln(FOODAWAY)")
+```
+The variable FOODAWAY has 1200 total observations. However, ln(FOODAWAY) only has 1022 valid observations (with 178 NAs). This difference occurs because the logarithm function, $\ln(x)$, is only defined for strictly positive numbers ($x > 0$). In this dataset, there are 178 households that reported zero expenditure on food away from home (FOODAWAY = 0). When taking the natural log of 0, it results in an undefined value (represented as NA or missing in R).
+
+## (d)
+
+```{r 2.25d}
+reg_food <- lm(lnfoodaway ~ income, data = cex5_small)
+summary(reg_food)
+```
+**Interpretation of the estimated slope:**
+
+$\widehat{\ln(\text{FOODAWAY})} = 3.1293 + 0.0069017 \times \text{INCOME}$
+
+- Estimated Slope ($\hat{\beta}_2 = 0.0069017$): 
+Since the dependent variable is log-transformed ($\ln(Y)$) and the independent variable ($X$) is linear, this is a log-linear model. The coefficient interpretation is that for every 1 unit increase in INCOME (which is in $\$100$ units), the expenditure on food away from home (FOODAWAY) is estimated to increase by approximately $0.69\%$, holding all other factors constant.
+
+## (e) 
+
+```{r 2.25e}
+plot(cex5_small$income, cex5_small$lnfoodaway,
+     pch = 16, cex = 0.5,
+     col = rgb(0.2, 0.4, 0.6, 0.4),
+     main = "ln(FOODAWAY) vs INCOME",
+     xlab = "INCOME (in $100 units)",
+     ylab = "ln(FOODAWAY)")
+abline(reg_food, col = "red", lwd = 2)
+```
+
+
+
+## (f) 
+```{r 2.25f}
+residuals_f <- residuals(reg_food)
+income_f <- cex5_small$income[!is.na(cex5_small$lnfoodaway)]
+
+plot(income_f, residuals_f,
+     pch = 16, cex = 0.5,
+     col = rgb(0.6, 0.2, 0.2, 0.4),
+     main = "Residuals vs INCOME",
+     xlab = "INCOME (in $100 units)",
+     ylab = "Residuals")
+abline(h = 0, col = "blue", lwd = 2, lty = 2)
+```
+
+### White Test for Heteroscedasticity
+```{r white-test}
+resid_sq <- residuals_f^2
+white_reg <- lm(resid_sq ~ income_f + I(income_f^2))
+summary(white_reg)
+
+# White test statistics = n * R^2
+n <- length(residuals_f)
+r_sq <- summary(white_reg)$r.squared
+white_stat <- n * r_sq
+p_value <- 1 - pchisq(white_stat, df = 2)
+
+cat("White Test Statistic (nR^2):", white_stat, "\n")
+cat("Degrees of Freedom:         ", 2, "\n")
+cat("P-value:                    ", p_value, "\n")
+
+
+```
+
+
+**Analysis of Residuals:**
+
+Visual inspection of the 'Residuals vs INCOME' plot reveals that the residuals are generally centered around the zero line. While the dispersion of residuals appears to widen at higher income levels (particularly when INCOME exceeds 100), this visual fanning effect is likely an artifact of data sparsity in the right tail rather than a true structural change in variance. This observation is formally supported by the White test ($nR^2 = 2.51$, $p = 0.285$), which fails to reject the null hypothesis of homoscedasticity at the 5% significance level. Consequently, there is no statistically significant evidence of heteroscedasticity, allowing us to reasonably conclude that the error terms exhibit constant variance.
