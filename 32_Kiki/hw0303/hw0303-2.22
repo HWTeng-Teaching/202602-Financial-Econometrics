@@ -1,0 +1,115 @@
+q()
+install.packages("devtools")
+library(devtools)
+install_git("https://github.com/ccolonescu/PoEdata")
+library(PoEdata)   # 
+load(url("https://www.principlesofeconometrics.com/poe5/data/rdata/star5_small.rdata"))
+# --- (a) 
+比
+較
+小
+班 (small) 
+與
+常
+規
+班
+的
+綜
+合
+分
+數 ---
+# subset 
+條
+件
+：
+過
+濾
+出
+常
+規
+班 (regular == 1) 
+或
+小
+班 (small == 1)
+model_a <- lm(totalscore ~ small, data = subset(star5_small, regular == 1 | small == 1))
+summary(model_a)
+# --- (b) 
+閱
+讀 (readscore) 
+與
+數
+學 (mathscore) 
+的
+小
+班
+效
+應 ---
+model_b_read <- lm(readscore ~ small, data = subset(star5_small, regular == 1 | small == 1))
+summary(model_b_read)
+model_b_math <- lm(mathscore ~ small, data = subset(star5_small, regular == 1 | small == 1))
+summary(model_b_math)
+# --- (c) 
+比
+較
+助
+教
+班 (aide) 
+與
+常
+規
+班
+的
+綜
+合
+分
+數 ---
+# subset 
+條
+件
+：
+過
+濾
+出
+常
+規
+班 (regular == 1) 
+或
+助
+教
+班 (aide == 1)
+model_c <- lm(totalscore ~ aide, data = subset(star5_small, regular == 1 | aide == 1))
+summary(model_c)
+# --- (d) 
+閱
+讀
+與
+數
+學
+的
+助
+教
+效
+應 ---
+model_d_read <- lm(readscore ~ aide, data = subset(star5_small, regular == 1 | aide == 1))
+summary(model_d_read)
+model_d_math <- lm(mathscore ~ aide, data = subset(star5_small, regular == 1 | aide == 1))
+summary(model_d_math)
+load(url("https://www.principlesofeconometrics.com/poe5/data/rdata/star5_small.rdata"))
+# 可以用 ls() 指令確認載入的資料框名稱，這邊假設名稱就是 star5_small
+# --- (a) 比較小班 (small) 與常規班的綜合分數 ---
+# subset 條件：過濾出常規班 (regular == 1) 或小班 (small == 1)
+model_a <- lm(totalscore ~ small, data = subset(star5_small, regular == 1 | small == 1))
+summary(model_a)
+# --- (b) 閱讀 (readscore) 與數學 (mathscore) 的小班效應 ---
+model_b_read <- lm(readscore ~ small, data = subset(star5_small, regular == 1 | small == 1))
+summary(model_b_read)
+model_b_math <- lm(mathscore ~ small, data = subset(star5_small, regular == 1 | small == 1))
+summary(model_b_math)
+# --- (c) 比較助教班 (aide) 與常規班的綜合分數 ---
+# subset 條件：過濾出常規班 (regular == 1) 或助教班 (aide == 1)
+model_c <- lm(totalscore ~ aide, data = subset(star5_small, regular == 1 | aide == 1))
+summary(model_c)
+# --- (d) 閱讀與數學的助教效應 ---
+model_d_read <- lm(readscore ~ aide, data = subset(star5_small, regular == 1 | aide == 1))
+summary(model_d_read)
+model_d_math <- lm(mathscore ~ aide, data = subset(star5_small, regular == 1 | aide == 1))
