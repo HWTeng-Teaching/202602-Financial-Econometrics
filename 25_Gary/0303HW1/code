@@ -1,0 +1,58 @@
+rm(list=ls())
+load(url("http://www.principlesofeconometrics.com/poe5/data/rdata/star5_small.rdata"))
+
+  
+#2.22
+
+dim(star5_small)
+names(star5_small)
+str(star5_small)
+head(star5_small, n = 10)
+
+mean(star5_small$totalscore)
+mean(star5_small$readscore)
+mean(star5_small$mathscore)
+
+# (a)
+
+reg_a <- lm(totalscore ~ small, data = star5_small)
+summary(reg_a)
+coef(reg_a)
+confint(reg_a)
+anova(reg_a)
+
+# (b)
+
+reg_b_read <- lm(readscore ~ small, data = star5_small)
+summary(reg_b_read)
+coefficients(reg_b_read)
+
+reg_b_math <- lm(mathscore ~ small, data = star5_small)
+summary(reg_b_math)
+coefficients(reg_b_math)
+
+coef(reg_b_read)["small"]
+coef(reg_b_math)["small"]
+
+# (c)
+
+reg_c <- lm(totalscore ~ aide, data = star5_small)
+
+print(summary(reg_c))
+
+sum(residuals(reg_c))
+
+# (d)
+
+reg_d_read <- lm(readscore ~ aide, data = star5_small)
+summary(reg_d_read)
+
+reg_d_math <- lm(mathscore ~ aide, data = star5_small)
+summary(reg_d_math)
+
+coef(reg_d_read)
+coef(reg_d_math)
+
+
+
+#2.25
