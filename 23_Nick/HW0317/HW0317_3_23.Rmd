@@ -1,0 +1,297 @@
+---
+title: "hw0317_3_23"
+output:
+  html_document: default
+date: "2026-03-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+df <- read.csv("/Users/chenjunqi/Desktop/114-2/計量經濟/poe5csv/collegetown.csv")
+```
+
+
+```{r}
+df$sqft2 <- df$sqft^2
+model <- lm(price ~ sqft2, data = df)
+summary(model)
+```
+```{r}
+coef_est <- coef(summary(model))
+alpha2_hat <- coef_est["sqft2", "Estimate"]
+se_alpha2  <- coef_est["sqft2", "Std. Error"]
+```
+
+#a
+```{r}
+# 2000 square feet = 20 個「百平方英尺」
+x0 <- 20
+
+# marginal effect = dE(PRICE|SQFT)/dSQFT = 2 * alpha2 * SQFT
+# 在 SQFT = 20 時，marginal effect = 40 * alpha2
+marginal_hat <- 2 * alpha2_hat * x0
+
+# H0: marginal effect <= 13
+# H1: marginal effect > 13
+# 因為 PRICE 單位是千美元，所以 $13000 = 13
+null_value <- 13
+
+# marginal effect 的標準誤
+se_marginal <- 2 * x0 * se_alpha2
+```
+
+```{r}
+# t 統計量
+t_stat <- (marginal_hat - null_value) / se_marginal
+
+# 自由度
+dfree <- df.residual(model)
+
+# 右尾檢定 p-value
+p_value <- 1 - pt(t_stat, df = dfree)
+
+# 5% 顯著水準右尾臨界值
+t_crit <- qt(0.95, df = dfree)
+
+```
+
+```{r}
+# 輸出結果
+cat("alpha2_hat =", alpha2_hat, "\n")
+cat("SE(alpha2_hat) =", se_alpha2, "\n")
+cat("Estimated marginal effect at SQFT = 20 =", marginal_hat, "\n")
+cat("SE of marginal effect =", se_marginal, "\n")
+cat("t statistic =", t_stat, "\n")
+cat("Critical value =", t_crit, "\n")
+cat("p-value =", p_value, "\n")
+
+# 結論
+if (t_stat > t_crit) {
+  cat("Reject H0: the marginal effect is greater than $13,000.\n")
+} else {
+  cat("Do not reject H0: insufficient evidence that the marginal effect is greater than $13,000.\n")
+}
+```
+\[\text{Model: } PRICE = \alpha_1 + \alpha_2 SQFT^2 + e\]
+
+The conditional expectation function is
+\[E(PRICE \mid SQFT) = \alpha_1 + \alpha_2 SQFT^2.\]
+Hence, the marginal effect of house size on expected price is
+\[\frac{dE(PRICE \mid SQFT)}{dSQFT} = 2\alpha_2 SQFT.\]
+Since \(SQFT\) is measured in hundreds of square feet, a 2000 square foot house corresponds to
+\[SQFT = 20.\]
+Therefore, the marginal effect at \(SQFT=20\) is
+\[2\alpha_2(20) = 40\alpha_2.\]
+Because \(PRICE\) is measured in thousands of dollars, \(\$13{,}000\) corresponds to \(13\).  
+Thus, the hypotheses are
+\[H_0: 40\alpha_2 \le 13
+\qquad \text{versus}\qquad
+H_1: 40\alpha_2 > 13.\]
+From the regression results,
+\[\hat{\alpha}_2 = 0.18452,
+\qquad
+se(\hat{\alpha}_2) = 0.005256.\]
+Thus, the estimated marginal effect at \(SQFT=20\) is
+\[40\hat{\alpha}_2 = 40(0.18452) = 7.381.\]
+The standard error of \(40\hat{\alpha}_2\) is
+\[se(40\hat{\alpha}_2) = 40 \cdot se(\hat{\alpha}_2)= 40(0.005256) = 0.21024.\]
+So the test statistic is
+\[t=\frac{40\hat{\alpha}_2 - 13}{40\,se(\hat{\alpha}_2)}=\frac{7.381 - 13}{0.21024}\approx -26.73.\]
+With \(n=500\), the degrees of freedom are
+\[df = 500 - 2 = 498.\]
+At the 5\% significance level, this is a one-sided test, so the rejection region is
+\[t > t_{0.95,498} \approx 1.648.\]
+The p-value is
+\[p\text{-value} = P(T_{498} > -26.73) \approx 1.000.\]
+Since
+\[-26.73 < 1.648,\]
+we do not reject \(H_0\).
+\bigskip
+\textbf{Conclusion:}
+There is insufficient evidence at the 5\% significance level to conclude that the marginal effect on expected house price of increasing the size of a 2000 square foot house by 100 square feet is greater than \(\$13{,}000\). The data do not support the claim.
+
+
+#b
+
+```{r}
+# b 小題: 4000 square feet = 40 個「百平方英尺」
+x1 <- 40
+
+# marginal effect = dE(PRICE|SQFT)/dSQFT = 2 * alpha2 * SQFT
+marginal_hat <- 2 * alpha2_hat * x1
+
+# H0: marginal effect <= 13
+# H1: marginal effect > 13
+null_value <- 13
+
+# marginal effect 的標準誤
+se_marginal <- 2 * x1 * se_alpha2
+
+# t statistic
+t_stat <- (marginal_hat - null_value) / se_marginal
+
+# 自由度
+dfree <- df.residual(model)
+
+# 右尾檢定 p-value
+p_value <- 1 - pt(t_stat, df = dfree)
+
+# 5% 顯著水準右尾臨界值
+t_crit <- qt(0.95, df = dfree)
+
+# 輸出結果
+cat("Estimated marginal effect at SQFT = 40:", marginal_hat, "\n")
+cat("Standard error:", se_marginal, "\n")
+cat("t statistic:", t_stat, "\n")
+cat("Critical value:", t_crit, "\n")
+cat("p-value:", p_value, "\n")
+
+# 結論
+if (t_stat > t_crit) {
+  cat("Reject H0: the marginal effect is greater than $13,000.\n")
+} else {
+  cat("Do not reject H0: insufficient evidence that the marginal effect is greater than $13,000.\n")
+}
+```
+\[\text{Using the quadratic regression model }
+PRICE=\alpha_1+\alpha_2 SQFT^2+e,\]
+\[E(PRICE\mid SQFT)=\alpha_1+\alpha_2 SQFT^2.\]
+The marginal effect is
+\[\frac{dE(PRICE\mid SQFT)}{dSQFT}=2\alpha_2 SQFT.\]
+Since \(SQFT\) is measured in hundreds of square feet, a 4000 square foot house corresponds to
+\[SQFT=40.\]
+Thus, the marginal effect at \(SQFT=40\) is
+\[2\alpha_2(40)=80\alpha_2.\]
+Because \(PRICE\) is measured in thousands of dollars, \(\$13{,}000\) corresponds to \(13\).  
+Therefore, the hypotheses are
+\[
+H_0:80\alpha_2\le 13
+\qquad \text{versus} \qquad
+H_1:80\alpha_2>13.
+\]
+From part (a),
+\[
+\hat{\alpha}_2=0.18452,
+\qquad
+se(\hat{\alpha}_2)=0.005256.
+\]
+Hence, the estimated marginal effect at \(SQFT=40\) is
+\[80\hat{\alpha}_2=80(0.18452)=14.7616.\]
+Its standard error is
+\[se(80\hat{\alpha}_2)=80(0.005256)=0.42048.\]
+So the test statistic is
+\[
+t=\frac{80\hat{\alpha}_2-13}{80\,se(\hat{\alpha}_2)}
+=\frac{14.7616-13}{0.42048}
+\approx 4.1895.
+\]
+
+With \(n=500\), the degrees of freedom are
+\[df=500-2=498.\]
+
+At the 5\% significance level, the rejection region is
+\[t>t_{0.95,498}\approx 1.648.\]
+
+The p-value is
+\[p\text{-value}=P(T_{498}>4.19)\approx 1.7\times 10^{-5}.\]
+
+Since
+
+\[4.1895>1.648,\]
+we reject \(H_0\).
+
+\bigskip
+
+\textbf{Conclusion:}
+
+At the 5\% significance level, the data support the claim that the marginal effect on expected house price of increasing the size of a 4000 square foot house by 100 square feet is greater than \(\$13{,}000\).
+
+
+#c
+```{r}
+# 2000 square feet = 20 個「百平方英尺」
+newdata <- data.frame(sqft2 = 20^2)
+
+# 估計期望價格與 95% 信賴區間
+pred_ci <- predict(model, newdata = newdata, interval = "confidence", level = 0.95)
+
+# 印出結果
+print(pred_ci)
+```
+
+\[
+\text{Using the quadratic regression model }
+PRICE=\alpha_1+\alpha_2 SQFT^2+e,
+\]
+\[E(PRICE\mid SQFT)=\alpha_1+\alpha_2 SQFT^2.\]
+
+Since \(SQFT\) is measured in hundreds of square feet, a 2000 square foot house corresponds to
+
+\[SQFT=20.\]
+
+Using the estimated regression equation,
+
+\[
+\widehat{E(PRICE\mid SQFT=20)}
+=
+\hat{\alpha}_1+\hat{\alpha}_2(20)^2
+=
+93.5659+0.184519(400)
+=
+167.3735.
+\]
+
+Thus, the estimated expected price is
+
+\[167.37\]
+
+in thousand-dollar units, i.e. approximately \(\$167{,}373\).
+
+A 95\% confidence interval for the expected price is
+
+\[
+(158.05,\;176.70)
+\]
+
+in thousand-dollar units.
+
+Therefore, we estimate that the average price of a 2000 square foot house is about \(\$167{,}373\), and we are 95\% confident that the true expected price lies between \(\$158{,}048\) and \(\$176{,}699\).
+
+#d
+```{r}
+# 找出 SQFT = 20 的房子
+subset_20 <- subset(df, sqft == 20)
+
+# 看有幾間
+nrow(subset_20)
+
+# 顯示這些房子的價格
+subset_20$price
+
+# 計算樣本平均售價
+mean_price_20 <- mean(subset_20$price)
+mean_price_20
+```
+
+Houses in the sample with \(SQFT=20\) have selling prices
+
+\[138,\;169,\;183\]
+
+(in thousand-dollar units). Therefore, the sample mean selling price is
+\[\bar{PRICE}=\frac{138+169+183}{3}=163.33.\]
+Thus, the sample average selling price for houses with \(SQFT=20\) is
+\[\boxed{163.33}\]
+in thousand-dollar units.
+In part (c), the estimated expected price for a house with \(SQFT=20\) was
+
+\[\widehat{E(PRICE\mid SQFT=20)} = 167.37\]
+with a 95\% confidence interval
+\[(158.05,\;176.70).\]
+Since
+\[163.33 \in (158.05,\;176.70),\]
+
+the sample average selling price is compatible with the result in part (c). The observed sample mean is close to the estimated expected price and lies within the 95\% confidence interval, so there is no contradiction between the sample evidence and the model-based estimate.
+

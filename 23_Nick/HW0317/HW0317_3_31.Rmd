@@ -1,0 +1,451 @@
+---
+title: "hw0317_3_31"
+output: html_document
+date: "2026-03-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+df <- read.csv("/Users/chenjunqi/Desktop/114-2/計量經濟/poe5csv/tuna.csv")
+```
+
+#a
+```{r}
+# 建立 WEEK 變數
+df$week <- 1:nrow(df)
+
+# 摘要統計量
+mean_sal1 <- mean(df$sal1)
+min_sal1  <- min(df$sal1)
+max_sal1  <- max(df$sal1)
+sd_sal1   <- sd(df$sal1)
+
+mean_apr1 <- mean(df$apr1)
+min_apr1  <- min(df$apr1)
+max_apr1  <- max(df$apr1)
+sd_apr1   <- sd(df$apr1)
+
+cat("SAL1:\n")
+cat("Mean =", mean_sal1, "\n")
+cat("Min  =", min_sal1, "\n")
+cat("Max  =", max_sal1, "\n")
+cat("SD   =", sd_sal1, "\n\n")
+
+cat("APR1:\n")
+cat("Mean =", mean_apr1, "\n")
+cat("Min  =", min_apr1, "\n")
+cat("Max  =", max_apr1, "\n")
+cat("SD   =", sd_apr1, "\n")
+```
+
+```{r}
+# 畫 SAL1 對 WEEK
+plot(df$week, df$sal1, type = "b",
+     xlab = "WEEK", ylab = "SAL1",
+     main = "Weekly Sales of Brand 1 Tuna")
+
+# 畫 APR1 對 WEEK
+plot(df$week, df$apr1, type = "b",
+     xlab = "WEEK", ylab = "APR1",
+     main = "Weekly Price of Brand 1 Tuna")
+```
+The sample contains 52 weekly observations. Since the data file does not include a separate variable for week, let
+
+\[
+WEEK = 1,2,\dots,52.
+\]
+
+The summary statistics for \(SAL1\) and \(APR1\) are as follows:
+
+\[
+\begin{array}{lcccc}
+\hline
+\text{Variable} & \text{Mean} & \text{Minimum} & \text{Maximum} & \text{Standard Deviation} \\
+\hline
+SAL1 & 6718.71 & 1762 & 32820 & 6915.08 \\
+APR1 & 0.7825 & 0.61 & 0.92 & 0.0980 \\
+\hline
+\end{array}
+\]
+
+The variable \(SAL1\) shows substantial week-to-week variation. Its minimum and maximum values differ greatly, and its standard deviation is even larger than its mean. This indicates that weekly sales fluctuate considerably over the year.
+
+By contrast, \(APR1\) varies much less from week to week. Its values range only from \(0.61\) to \(0.92\), and its standard deviation is relatively small. Thus, price changes are modest compared with sales changes.
+
+Overall, there is much more variation in sales than in price from week to week.
+
+#b
+```{r}
+# 畫 SAL1 against APR1
+plot(df$apr1, df$sal1,
+     xlab = "APR1",
+     ylab = "SAL1",
+     main = "Scatter Plot of SAL1 against APR1",
+     pch = 19)
+
+# 加上一條簡單回歸線
+abline(lm(sal1 ~ apr1, data = df), lwd = 2)
+
+# 計算相關係數
+cor(df$sal1, df$apr1)
+```
+A scatter plot of \(SAL1\) against \(APR1\) shows an inverse relationship between sales and price. In general, higher values of \(APR1\) are associated with lower values of \(SAL1\), while lower prices are associated with higher sales.
+
+This is what we would expect. By the law of demand, when the price of a product rises, consumers tend to buy less of it, and when the price falls, consumers tend to buy more. Thus, a negative relationship between \(SAL1\) and \(APR1\) is consistent with economic theory.
+
+However, sales may also be affected by other factors such as promotions, advertising, and competitors' prices, so the scatter plot shows only the overall association and not the full causal effect of price.
+
+#c
+```{r}
+# 建立 PRICE1 = 100 * APR1
+df$price1 <- 100 * df$apr1
+
+# 估計迴歸
+model <- lm(sal1 ~ price1, data = df)
+
+# 顯示結果
+summary(model)
+
+# 取出斜率估計值與標準誤
+coef_est <- coef(summary(model))
+beta2_hat <- coef_est["price1", "Estimate"]
+se_beta2  <- coef_est["price1", "Std. Error"]
+
+# 95% 信賴區間
+conf_int <- confint(model, level = 0.95)
+
+# 印出結果
+cat("Point estimate for effect of a 1-cent increase in price:", beta2_hat, "\n")
+cat("95% confidence interval:\n")
+print(conf_int["price1", ])
+```
+
+Define
+
+\[PRICE1 = 100APR1,\]
+
+so that \(PRICE1\) measures the price of brand no. 1 tuna in cents.  
+We then estimate the regression model
+
+\[SAL1 = \beta_1 + \beta_2 PRICE1 + e.\]
+
+The estimated regression equation is
+
+\[\widehat{SAL1} = 40706.31 - 434.45\,PRICE1.\]
+
+Thus, the point estimate for the effect of a one cent increase in the price of brand no. 1 on the sales of brand no. 1 is
+
+\[\hat{\beta}_2 = -434.45.\]
+
+This means that a one cent increase in the price of brand no. 1 is estimated to reduce weekly sales by about \(434.45\) units.
+
+A 95\% confidence interval for \(\beta_2\) is
+
+\[\hat{\beta}_2 \pm t_{0.025,50} \cdot se(\hat{\beta}_2).\]
+
+Using the regression results,
+
+\[
+\hat{\beta}_2 = -434.45,
+\qquad
+se(\hat{\beta}_2)=78.59,
+\]
+
+and \(t_{0.025,50}\approx 2.009\), we obtain
+
+\[
+-434.45 \pm 2.009(78.59)
+=
+-434.45 \pm 157.84.
+\]
+
+Therefore, the 95\% confidence interval is
+
+\[(-592.29,\;-276.60).\]
+
+So we estimate that a one cent increase in the price of brand no. 1 reduces weekly sales by between about \(277\) and \(592\) units, with 95\% confidence.
+
+#d
+```{r}
+# 當價格為 70 cents 時
+newdata <- data.frame(price1 = 70)
+
+# 90% confidence interval for expected sales
+pred_90 <- predict(model,
+                   newdata = newdata,
+                   interval = "confidence",
+                   level = 0.90)
+
+print(pred_90)
+```
+
+Using the regression model from part (c),
+
+\[
+SAL1=\beta_1+\beta_2 PRICE1+e,
+\]
+
+where \(PRICE1=100APR1\), a price of 70 cents corresponds to
+
+\[
+PRICE1=70.
+\]
+
+From part (c), the estimated regression equation is
+
+\[
+\widehat{SAL1}=40714.22-434.45\,PRICE1.
+\]
+
+Therefore, when \(PRICE1=70\),
+
+\[
+\widehat{E(SAL1\mid PRICE1=70)}
+=
+40714.22-434.45(70)
+=
+10302.90.
+\]
+
+So the estimated expected number of cans sold in a week is
+
+\[10302.90.\]
+
+A 90\% confidence interval for the expected number of cans sold is
+
+\[(8624.93,\;11980.87).\]
+
+Thus, when the price per can is 70 cents, the expected weekly sales are estimated to be about 10,303 cans, and we are 90\% confident that the true expected weekly sales lie between 8,625 and 11,981 cans.
+
+#e
+```{r}
+# 取出斜率與標準誤
+coef_est <- coef(summary(model))
+beta2_hat <- coef_est["price1", "Estimate"]
+se_beta2  <- coef_est["price1", "Std. Error"]
+
+# 樣本平均
+mean_sal1   <- mean(df$sal1)
+mean_price1 <- mean(df$price1)
+
+# elasticity at the means
+elas_hat <- beta2_hat * (mean_price1 / mean_sal1)
+
+# standard error of elasticity
+# treating sample means as constants
+se_elas <- (mean_price1 / mean_sal1) * se_beta2
+
+# 自由度與 t 臨界值
+dfree <- df.residual(model)
+t_crit <- qt(0.975, df = dfree)
+
+# 95% CI
+lower <- elas_hat - t_crit * se_elas
+upper <- elas_hat + t_crit * se_elas
+
+cat("Elasticity at the means =", elas_hat, "\n")
+cat("95% CI =", lower, "to", upper, "\n")
+```
+Using the regression model from part (c),
+
+\[
+SAL1=\beta_1+\beta_2 PRICE1+e,
+\]
+
+the price elasticity of sales with respect to price is
+
+\[
+\eta
+=
+\frac{\partial E(SAL1)}{\partial PRICE1}
+\cdot
+\frac{PRICE1}{E(SAL1)}.
+\]
+
+Since
+
+\[
+\frac{\partial E(SAL1)}{\partial PRICE1}=\beta_2,
+\]
+
+the elasticity evaluated at the sample means is
+
+\[
+\eta
+=
+\beta_2
+\cdot
+\frac{\bar{PRICE1}}{\bar{SAL1}}.
+\]
+
+Treating the sample means as constants, the point estimate is
+
+\[
+\hat{\eta}
+=
+\hat{\beta}_2
+\cdot
+\frac{\bar{PRICE1}}{\bar{SAL1}}.
+\]
+
+Using
+
+\[
+\hat{\beta}_2=-434.4473,
+\qquad
+\bar{PRICE1}=78.25,
+\qquad
+\bar{SAL1}=6718.7115,
+\]
+
+we obtain
+
+\[
+\hat{\eta}
+=
+-434.4473
+\cdot
+\frac{78.25}{6718.7115}
+\approx -5.06.
+\]
+
+Thus, the estimated price elasticity of sales at the means is
+
+\[-5.06.\]
+
+Because the sample means are treated as constants, the standard error of \(\hat{\eta}\) is
+
+\[
+se(\hat{\eta})
+=
+\frac{\bar{PRICE1}}{\bar{SAL1}}\,se(\hat{\beta}_2).
+\]
+
+Using
+
+\[
+se(\hat{\beta}_2)=78.5849,
+\]
+
+we get
+
+\[
+se(\hat{\eta})\approx 0.9152.
+\]
+
+With \(n=52\), the degrees of freedom are
+
+\[
+df=50.
+\]
+
+Therefore, a 95\% confidence interval for the elasticity is
+
+\[
+\hat{\eta}\pm t_{0.025,50}\,se(\hat{\eta}),
+\]
+
+that is,
+
+\[
+-5.06 \pm 2.009(0.9152),
+\]
+
+which gives
+
+\[(-6.90,\,-3.22).\]
+
+Since the absolute value of the elasticity is well above 1, sales appear to be fairly elastic with respect to price. This means that a 1\% increase in price is associated with about a 5.06\% decrease in sales.
+
+This result makes economic sense because canned tuna typically has many close substitutes, so consumers may respond strongly to price changes by switching brands or postponing purchases. However, the large magnitude may also reflect the influence of promotions, displays, and competitors' prices that are not included in the simple regression model.
+
+#f
+```{r}
+# 檢定 H0: elasticity = -3
+null_value <- -3
+
+t_stat <- (elas_hat - null_value) / se_elas
+dfree  <- df.residual(model)
+
+# 雙尾 p-value
+p_value <- 2 * (1 - pt(abs(t_stat), df = dfree))
+
+# 10% 顯著水準雙尾臨界值
+t_crit <- qt(0.95, df = dfree)
+
+cat("Estimated elasticity =", elas_hat, "\n")
+cat("SE(elasticity) =", se_elas, "\n")
+cat("t statistic =", t_stat, "\n")
+cat("Critical value =", t_crit, "\n")
+cat("p-value =", p_value, "\n")
+
+if (abs(t_stat) > t_crit) {
+  cat("Reject H0: elasticity is not equal to -3.\n")
+} else {
+  cat("Do not reject H0: insufficient evidence that elasticity differs from -3.\n")
+}
+```
+
+From part (e), the price elasticity of sales with respect to price at the means is
+
+\[\eta
+=
+\beta_2 \cdot \frac{\bar{PRICE1}}{\bar{SAL1}},\]
+
+where \(\bar{PRICE1}\) and \(\bar{SAL1}\) are treated as constants.
+We test
+\[
+H_0:\beta_2 \cdot \frac{\bar{PRICE1}}{\bar{SAL1}}=-3
+\qquad \text{versus} \qquad
+H_1:\beta_2 \cdot \frac{\bar{PRICE1}}{\bar{SAL1}}\neq -3.
+\]
+
+From part (e),
+\[
+\hat{\eta}=-5.06,
+\qquad
+se(\hat{\eta})=0.9152.
+\]
+
+Thus, the test statistic is
+\[
+t=\frac{\hat{\eta}-(-3)}{se(\hat{\eta})}
+=\frac{-5.06+3}{0.9152}
+\approx -2.25.
+\]
+
+With \(n=52\), the degrees of freedom are
+
+\[df=52-2=50.\]
+
+At the 10\% significance level, this is a two-sided test, so the rejection region is
+
+\[|t|>t_{0.05,50}\approx 1.676.\]
+
+The p-value is
+
+\[
+p\text{-value}
+=
+2P(T_{50}>2.25)
+\approx 0.029.
+\]
+
+Since
+
+\[|{-2.25}|=2.25>1.676\]
+
+and
+
+\[0.029<0.10,\]
+
+we reject \(H_0\).
+
+\bigskip
+
+\textbf{Conclusion:}
+
+At the 10\% significance level, there is sufficient evidence that the price elasticity of sales of brand no. 1 is different from \(-3\). The estimated elasticity is about \(-5.06\), suggesting that sales are more price elastic than \(-3\).
