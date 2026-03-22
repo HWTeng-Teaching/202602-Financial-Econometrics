@@ -1,0 +1,269 @@
+---
+title: "HW0317 "
+output:
+  html_document: default
+  pdf_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+### 3.18(a)
+
+```{r, echo=FALSE}
+beta1 <- 6.855
+beta2 <- 3.880
+
+x <- seq(0, 120, length.out = 100)
+y <- beta1 + beta2 * x
+
+x_bar <- 59.3
+y_bar <- beta1 + beta2 * x_bar
+
+plot(x, y,
+     type = "l",
+     lwd = 2,
+     xlab = "INCOME (thousand dollars)",
+     ylab = "INSURANCE (thousand dollars)",
+     main = "Fitted Regression Line",
+     ylim = c(0, max(y)*1.1))
+
+points(x_bar, y_bar, pch = 19)
+
+text(x_bar, y_bar,
+     labels = "Mean (59.3, 236.9)",
+     pos = 4)
+
+points(0, beta1, pch = 17)
+text(0, beta1,
+     labels = "Intercept = 6.855",
+     pos = 4)
+
+text(80, beta1 + beta2 * 80,
+     labels = "Slope = 3.880",
+     pos = 4)
+```
+
+### 3.23(a)
+
+```{r}
+collegetown <- read.csv("collegetown.csv")
+model <- lm(price ~I(sqft^2), data = collegetown)
+alpha2_hat <- coef(model)["I(sqft^2)"]
+se_alpha2 <- summary(model)$coefficients["I(sqft^2)", "Std. Error"]
+
+t_stat <- (40 * alpha2_hat - 13) / (40 * se_alpha2)
+df <- model$df.residual
+t_crit <- qt(0.95, df)
+p_value <- 1 - pt(t_stat, df)
+cat("t =", t_stat, "\n t_crit=", t_crit, "\n p_value=", p_value, "\n")
+```
+
+
+在 5% 顯著水準下，計算得到的檢定統計量為 $t = -26.73$，明顯小於右尾檢定的臨界值 $t_{cr} = 1.648$。此外，p-value 為 1（大於 0.05）。因此，我們不拒絕虛無假設。由此可知，沒有足夠證據顯示在房屋面積為 2000 平方英尺時，增加 100 平方英尺所帶來的預期房價邊際效果會大於 $13,000$。
+
+### 3.23(b)
+```{r}
+t_stat_b <- (80 * alpha2_hat - 13) / (80 * se_alpha2)
+
+df <- model$df.residual
+t_crit_b <- qt(0.95, df)
+p_value_b <- 1 - pt(t_stat_b, df)
+
+cat("t =", t_stat_b, 
+    "\n t_crit=", t_crit_b, 
+    "\n p_value=", p_value_b, "\n")
+```
+
+在 5% 顯著水準下，計算得到的檢定統計量為 $t = 4.819$，大於右尾檢定的臨界值 $t_{cr} = 1.648$。此外，p-value 約為 $1.65 \times 10^{-5}$，遠小於 0.05。因此，我們拒絕虛無假設。
+由此可知，在房屋面積為 4000 平方英尺時，增加 100 平方英尺所帶來的預期房價邊際效果顯著大於 $13{,}000$。
+
+### 3.23(c)
+
+```{r}
+
+collegetown <- read.csv("collegetown.csv")
+model <- lm(price ~ I(sqft^2), data = collegetown)
+
+sqft0 <- 20
+new_data <- data.frame(sqft = sqft0)
+
+pred <- predict(model, newdata = new_data, interval = "confidence", level = 0.95)
+
+cat("fit =", pred[1,1],
+    "\n lwr =", pred[1,2],
+    "\n upr =", pred[1,3], "\n")
+```
+
+根據(a)中的二次迴歸模型，當房屋面積為 2000 平方英尺時，其預期房價估計值為 $167.3735$（千美元）此外，95% 信賴區間為 $(158.0481,\ 176.6988)$（千美元）。
+
+這表示我們有 95% 的信心水準認為，面積為 2000 平方英尺的房屋，其平均價格會落在 $158{,}0481$ 美元到 $176{,}6988$ 美元之間。
+
+### 3.23(d)
+
+```{r}
+houses_2000 <- subset(collegetown, sqft == 20)
+
+n_2000 <- nrow(houses_2000)
+mean_price_2000 <- mean(houses_2000$price)
+
+cat("Number of houses =", n_2000,
+    "\nSample mean price =", mean_price_2000, "\n")
+```
+
+樣本中居住面積為 2000 平方英尺（$SQFT=20$）的房屋共有 3 間，其平均售價為 $163.33$（千美元），約為 $163{,}330$ 美元。
+
+在(c)中，我們估計面積為 2000 平方英尺房屋的預期價格之 95% 信賴區間為 $(158.0481,\ 176.6988)$（千美元）。由於樣本平均售價 $163.33$（千美元）落在此區間內，因此可認為樣本平均售價與(c)的估計結果是相容的。
+
+### 3.31(a)
+
+```{r}
+tuna <- read.csv("tuna.csv")
+summary(tuna$sal1)
+summary(tuna$apr1)
+cat("\nstandard deviation (sal1) =", sd(tuna$sal1), "\n")
+cat("standard deviation (apr1) =", sd(tuna$apr1), "\n")
+if(!"week" %in% names(tuna)) tuna$week <- 1:nrow(tuna)
+plot(tuna$week, tuna$sal1,
+     type = "l",
+     main = "SAL1 vs Week",
+     xlab = "Week",
+     ylab = "SAL1")
+
+plot(tuna$week, tuna$apr1,
+     type = "l",
+     main = "APR1 vs Week",
+     xlab = "Week",
+     ylab = "APR1")
+```
+
+在銷售量與價格中都可以觀察到明顯的逐週變動，其中銷售量的標準差（6,915）甚至高於其樣本平均數（6,719），顯示每週銷售量具有極大的離散程度與劇烈波動，且從時間序列圖來看，整體呈現鋸齒狀且不平滑的變動，銷售量多次出現大幅向上的尖峰（最高超過 30,000 單位），代表某些週數存在短暫但劇烈的成長，而價格則呈現頻繁且明顯的下跌後快速回升的波動模式。
+
+### 3.31(b)
+
+```{r}
+plot(tuna$apr1, tuna$sal1,
+     main = "SAL1 vs APR1",
+     xlab = "Price (APR1)",
+     ylab = "Sales (SAL1)",
+     pch = 16)
+
+```
+
+從 SAL1 對 APR1 的散佈圖可以觀察到，兩者之間呈現明顯的反向（負）關係，即當價格（APR1）較低時，銷售量（SAL1）通常較高，而當價格上升時，銷售量則顯著下降，且整體資料點呈現由左上往右下的趨勢。此外，在較低價格區間（約 0.6 至 0.7）時，銷售量的變動幅度較大，甚至出現超過 30,000 單位的高銷售量，而在較高價格區間（約 0.8 以上）時，銷售量則普遍維持在較低水準。這樣的結果符合經濟學中的需求法則，即價格上升會降低需求量，因此價格與銷售量之間呈現負向關係是合理且符合預期的。
+
+### 3.31(c)
+
+```{r}
+
+tuna$price1 <- 100 * tuna$apr1
+
+model_c <- lm(sal1 ~ price1, data = tuna)
+
+summary(model_c)
+
+beta2_hat <- coef(model_c)["price1"]
+se_beta2 <- summary(model_c)$coefficients["price1", "Std. Error"]
+
+df <- model_c$df.residual
+t_crit <- qt(0.975, df)
+
+lower <- beta2_hat - t_crit * se_beta2
+upper <- beta2_hat + t_crit * se_beta2
+
+cat("beta2 =", beta2_hat,
+    "\n95% CI = [", lower, ",", upper, "]\n")
+```
+
+根據迴歸模型 $SAL1 = \beta_1 + \beta_2 PRICE1 + e$ 的估計結果，當品牌一鮪魚罐頭的價格每上升 1 分（1 cent）時，其銷售量平均會減少約 $434.45$ 單位，這就是價格每增加一分對銷售量影響的點估計。
+
+此外，$\beta_2$ 的 95% 信賴區間為 $[-592.29,\ -276.60]$。這表示我們有 95% 的信心水準認為，品牌一鮪魚罐頭的價格每增加 1 分時，其銷售量平均會減少約 276.60 到 592.29 單位。
+
+由於點估計與整個信賴區間都為負值，顯示價格上升對銷售量具有明顯的負向影響，這與需求法則一致。
+
+### 3.31(d)
+
+```{r}
+
+tuna <- read.csv("tuna.csv")
+
+tuna$price1 <- 100 * tuna$apr1
+
+model_c <- lm(sal1 ~ price1, data = tuna)
+
+new_data <- data.frame(price1 = 70)
+
+pred_d <- predict(model_c, newdata = new_data,
+                  interval = "confidence", level = 0.90)
+
+cat("fit =", pred_d[1,1],
+    "\n lwr =", pred_d[1,2],
+    "\n upr =", pred_d[1,3], "\n")
+```
+
+根據迴歸模型，當價格為 70 cents 時，每週預期銷售量的估計值為 $10{,}302.90$ 單位。此外，其 90% 信賴區間為 $(8{,}624.93,\ 11{,}980.87)$。
+
+這表示我們有 90% 的信心水準認為，當價格為 70 cents 時，平均每週銷售量會落在約 8,625 到 11,981 單位之間。
+
+### 3.31(e)
+
+```{r}
+tuna$price1 <- 100 * tuna$apr1
+
+model_c <- lm(sal1 ~ price1, data = tuna)
+
+beta2_hat <- coef(model_c)["price1"]
+se_beta2 <- summary(model_c)$coefficients["price1", "Std. Error"]
+
+mean_price1 <- mean(tuna$price1)
+mean_sal1 <- mean(tuna$sal1)
+
+elasticity <- beta2_hat * (mean_price1 / mean_sal1)
+
+se_elasticity <- se_beta2 * (mean_price1 / mean_sal1)
+
+df <- model_c$df.residual
+t_crit <- qt(0.975, df)
+
+lower <- elasticity - t_crit * se_elasticity
+upper <- elasticity + t_crit * se_elasticity
+
+cat("elasticity =", elasticity,
+    "\n95% CI = [", lower, ",", upper, "]\n")
+```
+
+根據估計結果，在平均值處（at the means），品牌一銷售量對價格的彈性估計為 $-5.06$。其 95% 信賴區間為 $(-6.90,\ -3.22)$。
+
+由於彈性為負值，表示價格上升會導致銷售量下降，符合需求法則。此外，彈性的絕對值大於 1，顯示需求具有高度彈性（elastic），代表消費者對價格變動相當敏感。
+
+此結果在經濟上是合理的，因為罐頭鮪魚屬於競爭性商品，市場上存在許多替代品，當價格上升時，消費者容易轉向其他品牌或產品，因此導致銷售量大幅下降。
+
+### 3.31(f)
+
+```{r}
+mean_price1 <- mean(tuna$price1)
+mean_sal1 <- mean(tuna$sal1)
+
+elasticity_hat <- beta2_hat * (mean_price1 / mean_sal1)
+se_elasticity <- se_beta2 * (mean_price1 / mean_sal1)
+
+t_stat_f <- (elasticity_hat - (-3)) / se_elasticity
+df <- model_c$df.residual
+t_crit_f <- qt(0.95, df)   
+p_value_f <- 2 * (1 - pt(abs(t_stat_f), df))
+
+cat("t =", t_stat_f,
+    "\n t_crit =", t_crit_f,
+    "\n p_value =", p_value_f, "\n")
+```
+
+我們檢定在平均值處的價格彈性是否等於 $-3$，其虛無假設與對立假設為：
+\[
+H_0:\ \text{elasticity} = -3
+\]
+\[
+H_1:\ \text{elasticity} \neq -3
+\]
+
+在 10% 顯著水準下，計算得到的檢定統計量為 $t = -2.25$，其絕對值大於臨界值 $t_{cr} = 1.676$。此外，p-value 約為 $0.0288$，小於 0.10。因此，我們拒絕虛無假設。
+
+由此可知，有足夠證據顯示品牌一銷售量對價格的彈性不等於 $-3$。且根據前一小題的估計結果（約為 $-5.06$），可進一步推論其需求對價格的反應程度比 $-3$ 更大，顯示消費者對價格變動相當敏感。
