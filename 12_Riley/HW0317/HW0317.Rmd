@@ -1,0 +1,206 @@
+---
+title: "HW0317"
+output:
+  html_document: default
+  pdf_document: default
+date: "2026-03-19"
+---
+
+#2.23
+```{r}
+library(readxl)
+collegetown <- read_excel("C:/finance ecomatrics/data/collegetown.xlsx")
+View(collegetown)
+```
+
+
+```{r}
+
+collegetown$sqft2 <- collegetown$sqft^2
+mod1 <- lm(price ~ sqft2, data = collegetown)
+smod1 <- summary(mod1)
+a1 <- coef(mod1)[[1]]       
+a2 <- coef(mod1)[[2]]       
+sea2 <- coef(smod1)[2, 2]   
+df <- df.residual(mod1)   # 自由度 n-2
+alpha <- 0.05
+```
+
+
+#(a): Marginal effect for a 2000 sq ft house
+
+SQFT = 20 時的邊際效應 (ME) = 2 * alpha2 * 20 = 40 * alpha2
+H0: 40 * alpha2 <= 13  vs  H1: 40 * alpha2 > 13
+```{r}
+ME_a <- 40 * a2
+se_ME_a <- 40 * sea2    
+#test statistic(right tail)
+t_a <- (ME_a - 13) / se_ME_a
+tcr_a <- qt(1 - alpha, df)  
+p_value_a <- 1 - pt(t_a, df)
+cat("t  =", t_a, "\ntcr =", tcr_a, "\np value =", p_value_a, "\n\n")
+```
+At the 5% level of significance, the calculated test statistic is $t = -26.73$, which is strictly less than the critical value $t_{cr} = 1.648$ for a right-tailed test.The $p\text{-value}$ is $1$ (greater than $0.05$)
+Therefore, we do not reject the null hypothesis.
+There's sufficient evidence to conclude that for a 2000-square-foot house, the marginal effect on the expected house price of adding 100 square feet is not greater than $\$13,000$
+
+#(b): Marginal effect for a 4000 sq ft house
+```{r}
+ME_b <- 80 * a2
+se_ME_b <- 80 * sea2        
+t_b <- (ME_b - 13) / se_ME_b
+tcr_b <- qt(1 - alpha, df)  
+p_value_b <- 1 - pt(t_b, df)
+cat("t  =", t_b, "\ntcr =", tcr_b, "\np value =", p_value_b, "\n\n")
+```
+At the 5% significance level, the calculated test statistic is $t = 4.189$, which strictly exceeds the critical value $t_{cr} = 1.648$, falling into the rejection region. The $p\text{-value}$ is $1.65 \times 10^{-5}$, which is highly significant and much less than $0.05$.
+Therefore, we reject the null hypothesis.
+There's sufficient evidence to conclude that for a 4000-square-foot house, the marginal effect of increasing its size by 100 square feet is significantly greater than $\$13,000$. 
+
+
+
+
+#(c): 95% Interval estimate for expected price at SQFT=20
+```{r}
+new_house <- data.frame(sqft2 = 400)
+ci_c <- predict(mod1, newdata = new_house, interval = "confidence", level = 0.95)
+print(ci_c)
+```
+In repeated sampling, about 95% of those intervals to contain the true population mean. Based on our sample, the interval is $158,0481 to $176,6988.
+
+#(d): Sample mean of prices for houses with exactly 2000 sq ft
+```{r}
+houses_2000 <- subset(collegetown, sqft == 20)
+sample_mean_20 <- mean(houses_2000$price)
+cat("實際樣本平均售價 =", sample_mean_20, "\n")
+```
+The actual sample mean of selling prices for a 2000-square-foot house is calculated to be $163.33$
+This sample average ($163.33$) falls perfectly within the 95% confidence interval constructed in part (c), which is $[158.05, 176.70]$.
+
+
+#2.31
+```{r}
+library(readxl)
+tuna <- read_excel("C:/finance ecomatrics/data/tuna.xlsx")
+View(tuna)
+```
+
+
+#(a): Summary Statistics & Plots
+```{r}
+summary(tuna$sal1)
+summary(tuna$apr1)
+
+cat("\nstandard deviation (sal1) =", sd(tuna$sal1), "\n")
+cat("standard deviation (apr1) =", sd(tuna$apr1), "\n")
+```
+
+
+```{r}
+if(!"week" %in% names(tuna)) tuna$week <- 1:nrow(tuna)
+plot(tuna$week, tuna$sal1, type="l", main="Sales over time",xlab="Week", ylab="Sales")
+plot(tuna$week, tuna$apr1, type="l", main="Price over time",xlab="Week", ylab="Price")
+```
+
+There is high week-to-week variation in both sales and price.
+
+1. High Standard Deviation relative to the Mean: The standard deviation of sales (6,915) actually exceeds the sample mean (6,719). This indicates extreme dispersion in the weekly sales data.
+
+2. From Plot: The time series plots are highly jagged and spiky, rather than smooth. The sales plot displays massive upward spikes (peaking over 30,000 units), indicating explosive, temporary growth in specific weeks.
+The price plot exhibits a pattern of frequent, sharp drops followed by quick recoveries.
+
+
+#(b): Scatter Plot (SAL1 vs APR1)
+```{r}
+plot(tuna$apr1, tuna$sal1, pch=16, main="Sales vs Price", xlab="Price", ylab="Sales")
+```
+
+The scatter plot clearly demonstrates an negative relationship between sales and price.
+This result is exactly what we would expect. According to the Law of Demand, holding all else equal, as the price of a good increases, the quantity demanded decreases, vice versa.
+
+
+
+#(c): Point & 95% Interval Estimate for 1-cent increase
+```{r}
+tuna$price1 <- 100 * tuna$apr1
+
+mod2 <- lm(sal1 ~ price1, data=tuna)
+smod2 <- summary(mod2)
+
+b2 <- coef(mod2)[[2]]        
+seb2 <- coef(smod2)[2,2]    
+
+# 95% C.I. (alpha = 0.05, two-tail)
+df2 <- df.residual(mod2)
+tc95 <- qt(1 - 0.05/2, df2) 
+lowb_c <- b2 - tc95 * seb2
+upb_c <- b2 + tc95 * seb2
+
+cat("Point Estimate (b2) =", b2, "\n")
+cat("95% CI for effect of 1-cent increase = [", lowb_c, ",", upb_c, "]\n\n")
+```
+the estimated slope coefficient $\hat{\beta}_2$ is -434.45.
+For every 1-cent increase in the price of brand no. 1 canned tuna, the expected weekly sales volume decreases by approximately 434.45 cans.
+
+At the 95% confidence level, the interval estimate for the true marginal effect of a 1-cent price increase on sales is [-592.29, -276.60]
+
+
+#(d): 90% Interval Estimate for E(sal1 | price1=70)
+```{r}
+tuna70 <- data.frame(price1 = 70)
+predict(mod2, newdata = tuna70, interval = "confidence", level = 0.90)
+```
+when the price of brand no. 1 canned tuna is 70 cents/ $\$0.70$, the point estimate for the expected (average) weekly sales volume is 10,302.9 can.
+ 
+At the 90% confidence level, the interval estimate for the true expected number of cans sold per week at a price of 70 cents is [8,624.93, 11,980.87] 
+
+
+#(e) 95% Interval Estimate for Elasticity at the Means
+```{r}
+mean_p <- mean(tuna$price1)
+mean_s <- mean(tuna$sal1)
+k <- mean_p / mean_s
+
+E_hat <- b2 * k
+se_E <- seb2 * k 
+
+tc95 <- qt(1 - 0.05/2, df2) 
+lowb_e <- E_hat - tc95 * se_E
+upb_e <- E_hat + tc95 * se_E
+
+cat("Point Estimate (E_hat) =", E_hat, "\n")
+cat("95% CI for effect of elasticity = [", lowb_e, ",", upb_e, "]\n\n")
+```
+The point estimate for the price elasticity of demand is -5.06. This indicates that a 1% increase in the price of brand no. 1 canned tuna is expected to result in approximately a 5.06% decrease in its sales volume.
+
+At the 95% confidence level, the interval estimate for the true population elasticity evaluated at the means is [-6.90, -3.22]
+
+Since the absolute value of the estimated elasticity is greater than 1, we conclude that the sales are fairly elastic with respect to price.
+
+It makes perfect economic sense. A specific brand of canned tuna has many substitutes available in the same supermarket. If Brand No. 1 raises its price, consumers incur almost zero switching costs to opt for a cheaper alternative. Consequently, the quantity demanded for this specific brand is highly sensitive to any change in its price.
+
+
+#(f): Hypothesis Test for Elasticity = -3
+```{r}
+# t statistic
+t_stat <- (E_hat - (-3)) / se_E
+# alpha=10% critical value
+tcr_f <- qt(1 - 0.10/2, df2) 
+#  p-value
+p_val_f <- 2 * (1 - pt(abs(t_stat), df2))
+
+cat("Test Statistic t =", t_stat, "\n")
+cat("Critical Value tcr =", tcr_f, "\n")
+cat("p-value =", p_val_f, "\n")
+cat("Reject H0? ->", abs(t_stat) > tcr_f, "\n")
+```
+$H_0$: $E = -3$
+$H_1$: $E \neq -3$
+
+At the 10% level of significance ($\alpha = 0.10$), the critical value for a two-tailed test is $t_{cr} = 1.676$.
+
+Rejection Region: We will reject $H_0$ if the calculated test statistic $t > 1.676$ or $t < -1.676$ ($|t| > 1.676$).
+
+Since the test statistic $|-2.251|$ is greater than the critical value 1.676 (and the p-value 0.0288 is less than the significance level of 0.10), we fall into the rejection region. Therefore, we reject the null hypothesis.
+
+At the 10% significance level, we have sufficient evidence to conclude that the elasticity of sales with respect to price is significantly different from -3.
