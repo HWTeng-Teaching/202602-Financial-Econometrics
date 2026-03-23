@@ -1,3 +1,4 @@
+#(d)
 # Define the parameters
 beta_hat_2 <- 3.880  # The estimated slope from regression
 beta_0 <- 5          # The value under the null hypothesis
