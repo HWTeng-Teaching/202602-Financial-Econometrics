@@ -1,0 +1,27 @@
+#3.18
+
+#a
+# Coefficients
+b0 <- 6.855
+b1 <- 3.880
+
+# Mean point
+x_bar <- 59.3
+y_bar <- b0 + b1 * x_bar
+
+# Plot empty frame
+plot(c(0, 100), c(0, 420),
+     type = "n",
+     xlab = "INCOME (thousand dollars)",
+     ylab = "INSURANCE (thousand dollars)",
+     main = "Fitted Relationship between INCOME and INSURANCE")
+
+# Add fitted line
+abline(a = b0, b = b1, lwd = 2)
+
+# Add mean point
+points(x_bar, y_bar, pch = 19, cex = 1.3)
+
+# Label mean point
+text(x_bar, y_bar, labels = paste0("(", x_bar, ", ", round(y_bar, 2), ")"),
+     pos = 3)
