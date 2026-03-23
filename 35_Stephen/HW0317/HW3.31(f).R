@@ -1,4 +1,5 @@
-# (f)
+#3.31(f)
+
 # 計算t統計量
 t_statistic <- (elasticity - (-3)) / se_elasticity
 
