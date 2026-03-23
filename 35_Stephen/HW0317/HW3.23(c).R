@@ -1,4 +1,5 @@
 #3.23(c)
+
 exp_price <- alpha1 + alpha2*sqft^2
 sqft <- 20
 alpha <- 0.05
