@@ -1,7 +1,7 @@
 install.packages("devtools")
 library(devtools)
 
-#(a)
+#3.18(a)
 b1=6.855 #estimated intercept
 b2=3.880 #estimated slope
 plot(NULL, main = "Fitted Regression Line", xlab = "INCOME", ylab = "INSURANCE",xlim=c(0,400),ylim=c(0,400))
