@@ -1,3 +1,5 @@
+#3.31(b)
+
 library("POE5Rdata")
 > data("tuna")
 > sal1=tuna$sal1
