@@ -1,3 +1,5 @@
+#3.31(d)
+
 data_tuna <- read.csv('C:/Users/zxc00/Desktop/tuna.csv')
 library(ggplot2)
 library(dplyr)
@@ -20,4 +22,3 @@ upper_bound <- yi_hat + tc_d*se_yi_hat_d
 lower_bound <- yi_hat - tc_d*se_yi_hat_d 
 upper_bound
 lower_bound
-
