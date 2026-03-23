@@ -1,3 +1,5 @@
+#3.31(c)
+
 load("C:/Users/USER/Desktop/tuna.rdata")
 SAL1 <- tuna$sal1
 APR1 <- tuna$apr1
