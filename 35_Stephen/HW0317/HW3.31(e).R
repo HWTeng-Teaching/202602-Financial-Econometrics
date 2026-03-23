@@ -1,4 +1,5 @@
-#e
+#3.31(e)
+
 load('/Users/xuanpei/Downloads/poe5rdata/tuna.rdata')
 mean_price=mean(price1)
 mean_sal=mean(tuna$sal1)
@@ -12,3 +13,4 @@ ci_lower=ela-t_value*se_ela
 ci_upper=ela+t_value*se_ela
 cat("Elasticity:",ela,"\n")
 cat("95% CI: [",ci_lower,",",ci_upper,"]\n")
+
