@@ -1,3 +1,5 @@
+#3.23(b)
+
 price <- collegetown$price
 sqft <- collegetown$sqft
 qrmodel <- lm(price~I(sqft^2))
@@ -18,5 +20,3 @@ se
 t_statistic_2
 critical_2
 pvalue_2
-
-
