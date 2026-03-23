@@ -1,4 +1,4 @@
-#(e)
+#3.18(e)
 ##INSURANCE = B1+B2*INCOME+elposn
 ###null hypothesis:B2=1
 ###alternative hypothesis:B2>1
