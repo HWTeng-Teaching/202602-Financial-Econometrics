@@ -1,0 +1,152 @@
+---
+title: "Financial Econometrics - Exercise 3.31"
+author: "Tony"
+date: "2026-03-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list = ls())
+library(POE5Rdata)
+# library(ggplot2) 先放著
+data(tuna)
+```
+
+## Exercise 3.31: Demand Analysis for Canned Tuna
+This study analyzes 52 weeks of sales data for a major brand of canned tuna.
+We explore the relationship between unit sales (SAL1) and the price per can (APR1).
+
+## Part (a): Summary Statistics and Time Series Analysis
+**Answer:**
+
+* **Summary Statistics:** The sample mean for weekly sales is 6718.7 units with a very high standard deviation of 6915.1, indicating significant volatility. In contrast, the price per can (APR1) is relatively stable, averaging $0.78 with a standard deviation of only $0.098.
+
+* **Time Series Observation:** Plotting these variables against time (WEEK) reveals that sales spikes often coincide with price drops. This suggests that consumers are responsive to promotional pricing throughout the year.
+
+```{r}
+# --- (a) Summary Statistics & Time Series Plots ---
+# 計算 SAL1 與 APR1 的平均、最小、最大、標準差
+
+summary_stats <- data.frame(
+  Variable = c("SAL1", "APR1"),
+  Mean = c(mean(tuna$sal1), mean(tuna$apr1)),
+  Min = c(min(tuna$sal1), min(tuna$apr1)),
+  Max = c(max(tuna$sal1), max(tuna$apr1)),
+  SD = c(sd(tuna$sal1), sd(tuna$apr1))
+)
+print(summary_stats)
+
+# 繪製隨時間變動的圖(時間序列圖)
+###取消 僅學習par(mfrow = c(2, 1)) # 分成上下兩格圖###
+plot(1:52, tuna$sal1, type = "l", col = "blue", main = "Weekly Sales (SAL1)"
+     , xlab="Week", ylab="Sales")
+plot(1:52, tuna$apr1, type = "l", col = "red", main = "Weekly Price (APR1)"
+     , xlab="Week", ylab="Price")
+###取消 僅學習par(mfrow = c(1, 1)) # 恢復單圖模式###
+```
+
+
+## Part (b): Sales vs. Price Relationship
+**Answer:**
+
+* **Visual Relationship:** The scatter plot shows a clear inverse (negative) relationship between price and sales. As the price per can increases, the number of units sold tends to decrease.
+
+* **Economic Expectation:** This result is exactly as expected under the Law of Demand, which states that, ceteris paribus, the quantity demanded of a good falls when the price of the good rises.
+```{r}
+# --- (b) Scatter Plot 散佈圖 ---
+plot(tuna$apr1, tuna$sal1, xlab = "Price (APR1)", ylab = "Sales (SAL1)",
+     main = "Sales vs Price")
+```
+
+
+## Part (c): Linear Regression and the Effect of Price (in Cents)
+**Answer:**
+
+* **Point Estimate:** The coefficient $\beta_2$ represents the estimated change in unit sales for every one-cent increase in the price. Based on our model, a one-cent increase in price leads to an estimated decrease of -434.4473  units sold.
+
+* **95% Interval Estimate:** In repeated sampling, approximately 95% of the intervals constructed using this methodology will contain the true value of the effect of a one-cent price increase on sales. For this sample, the interval is [[-592.2897], [-276.6049]].
+```{r}
+# --- (c) Linear Regression (Unit: Cents) ---
+tuna$price1 <- 100 * tuna$apr1  # 換算成 cent
+mod_tuna <- lm(sal1 ~ price1, data = tuna)
+summary(mod_tuna)
+
+
+# 提取 Beta2 估計值與 95% 信賴區間
+b2_tuna <- coef(mod_tuna)["price1"]
+ci_b2 <- confint(mod_tuna, "price1", level = 0.95)
+
+cat("Point Estimate (Beta2): ", b2_tuna, "\n")
+cat("95% CI for Beta2: [", ci_b2[1], ",", ci_b2[2], "]\n")
+```
+
+
+## Part (d): Expected Sales at 70 Cents
+**Answer:**
+
+* **Prediction:** For a week where the price is set at 70 cents ($PRICE1 = 70$), the expected number of cans sold is [10302.9].
+
+* **90% Interval Estimate:** Using the principle of repeated sampling, we expect that 90% of such intervals calculated from different samples would capture the true population mean sales at this price point. Our calculated 90% interval is [[8624.934], [11980.87]].
+```{r}
+# --- (d) Expected Sales at 70 Cents ---
+# 用 predict 函數計算 90% 信賴區間
+new_data <- data.frame(price1 = 70)
+predict_d <- predict(mod_tuna, new_data, interval = "confidence", level = 0.90)
+print(predict_d)
+```
+
+
+## Part (e): Price Elasticity of Demand at the Means
+**Answer:**
+
+* **Elasticity Estimate:** The estimated price elasticity of demand, calculated at the sample means, is [-5.059825].
+
+* **Interpretation:** This value implies that a 1% increase in price leads to an approximate [5.059825]% decrease in the quantity of tuna sold.
+
+* **95% Interval Estimate:** In repeated sampling, approximately 95% of intervals constructed this way will contain the true price elasticity at the means. Our calculated 90% interval is [[-6.898149], [-3.221501]].
+
+* **Economic Sense:** Since the absolute value of the elasticity is greater than 1, the demand for this brand of tuna is highly elastic. This makes economic sense because canned tuna is a non-essential commodity with many close substitutes (other brands or protein sources), making consumers very price-sensitive.
+```{r}
+# --- (e) Elasticity at the Means ---
+# Elasticity = Beta2 * (mean_p / mean_q)
+mean_p <- mean(tuna$price1)
+mean_q <- mean(tuna$sal1)
+elas_mean <- b2_tuna * (mean_p / mean_q)
+
+# 彈性的標準誤 (假設平均數為常數)
+# SE(Elasticity) = SE(Beta2) * (mean_p / mean_q)
+se_b2_tuna <- sqrt(vcov(mod_tuna)["price1", "price1"])
+se_elas <- se_b2_tuna * (mean_p / mean_q)
+
+# 95% 彈性信賴區間
+df_tuna <- df.residual(mod_tuna)
+t_crit_95 <- qt(0.975, df_tuna)
+lower_elas <- elas_mean - t_crit_95 * se_elas
+upper_elas <- elas_mean + t_crit_95 * se_elas
+
+cat("Elasticity at the Means: ", elas_mean, "\n")
+cat("95% CI for Elasticity: [", lower_elas, ",", upper_elas, "]\n")
+```
+
+
+## Part (f): Hypothesis Test for Elasticity
+**Answer:**
+
+* **Hypotheses:** We test the Null Hypothesis ($H_0: \epsilon = -3$) against the Alternative Hypothesis ($H_1: \epsilon \neq -3$).
+
+* **Test Statistic and P-value:** The calculated t-statistic is [-2.250572] with a corresponding p-value of [0.02884204 ].
+
+* **Conclusion:** Using a 10% significance level, we compare the p-value to $\alpha = 0.10$. If the p-value is less than 0.10, we reject the null hypothesis and conclude that the price elasticity is significantly different from -3. Otherwise, we fail to reject the null.
+
+```{r}
+# --- (f) Hypothesis Test: Elasticity = -3 (10% level) ---
+# H0: Elasticity = -3, H1: Elasticity != -3
+elas_null <- -3
+t_stat_f <- (elas_mean - elas_null) / se_elas
+p_val_f <- 2 * (1 - pt(abs(t_stat_f), df_tuna))
+
+cat("T-statistic for Hypothesis Test: ", t_stat_f, "\n")
+cat("P-value: ", p_val_f, "\n")
+```
+
