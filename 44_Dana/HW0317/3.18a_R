@@ -25,3 +25,208 @@ points(x_bar, y_bar, pch = 19, cex = 1.3)
 # Label mean point
 text(x_bar, y_bar, labels = paste0("(", x_bar, ", ", round(y_bar, 2), ")"),
      pos = 3)
+
+
+#3.23
+#a
+load(url("https://www.principlesofeconometrics.com/poe5/data/rdata/collegetown.rdata"))
+mod <- lm(price~I(sqft^2), data = collegetown) 
+summary(mod)
+a2_hat=coef(mod)["I(sqft^2)"]
+se_a2=summary(mod)$coefficients[2, 2]
+
+t_stat= (a2_hat-0.325)/se_a2
+t_crit=qt(0.95,df=df.residual(mod))
+p_value = 1-pt(t_stat,df=df.residual(mod))
+cat(
+    "3.23(a)","\n",
+    "The test statistic is t_stat= (a2_hat-0.325)/se_a2=",t_stat,"\n",
+    "The Critical value is t_crit=",t_crit,"\n",
+    "The rejection region is t>",t_crit,"\n",
+    "The p-value is p_value =",p_value,">0.05","\n",
+    "Fail to reject H0 at 5% level of significance","\n",
+    "There is no statistical evidence that the marginal effect of increasing house size by 100 sqft at 2000 sqft exceeds $13000","\n",
+    sep=""
+)
+
+#b
+t_stat_b = (a2_hat-0.1625)/se_a2
+t_crit_b=qt(0.95, df=df.residual(mod))
+p_value_b=1-pt(t_stat_b, df=df.residual(mod))
+
+cat(
+  "3.23(b)","\n",
+  "The test statistic is t_stat= (a2_hat-0.1625)/se_a2=",t_stat_b,"\n",
+  "The Critical value is t_crit=",t_crit_b,"\n",
+  "The rejection region is t>",t_crit_b,"\n",
+  "The p-value is p_value =",p_value_b,"<0.05","\n",
+  "Reject H0 at 5% level of significance","\n",
+  "There is statistical evidence that the marginal effect will be greater than $13000","\n",
+  sep="")
+
+#c
+a1_hat= coef(mod)[1]
+vcov_mat=vcov(mod)
+y_hat=a1_hat+a2_hat*(20^2)
+Var_yhat=vcov_mat[1,1]+400^2*vcov_mat[2,2]+2*vcov_mat[1,2]
+se_yhat=sqrt(Var_yhat)
+
+t_crit_c=qt(0.975, df=df.residual(mod))
+CI_lower=y_hat - t_crit_c*se_yhat
+CI_upper=y_hat + t_crit_c*se_yhat
+
+cat(
+  "3.23(c)","\n",
+"The estimated expected price at 2000 sqft is y_hat=",y_hat,"\n",
+"The 95% CI is [",CI_lower,",",CI_upper,"]","\n",
+"In repeated sampling, about 95% intervals contructed this way will cover the true value of average price of a 2000 sqft house","\n",
+sep="")
+
+#d
+d_sample <-subset(collegetown,sqft==20)
+d_obs = nrow(d_sample)
+mean_d=mean(d_sample$price)
+
+cat(
+  "3.23(d)","\n",
+  "Number of houses with 2000 sqft =", d_obs,"\n",
+  "Sample average price =", mean_d,"(in $1000)\n",
+  ifelse(mean_d >= CI_lower & mean_d <= CI_upper,
+         "The sample mean is within the 95% CI, so it is compatible with part (c).\n",
+         "The sample mean is outside the 95% CI, so it is not compatible with part (c).\n"
+  ),
+  sep="")
+
+#3.31
+load(url("https://www.principlesofeconometrics.com/poe5/data/rdata/tuna.rdata"))
+#a
+mean_sal1 = mean(tuna$sal1)
+min_sal1  = min(tuna$sal1)
+max_sal1  = max(tuna$sal1)
+sd_sal1   = sd(tuna$sal1)
+
+mean_apr1 = mean(tuna$apr1)
+min_apr1  = min(tuna$apr1)
+max_apr1  = max(tuna$apr1)
+sd_apr1   = sd(tuna$apr1)
+
+cat(
+  "3.31(a)","\n",
+  "SAL1: mean=",mean_sal1,", min=",min_sal1,", max=",max_sal1,", sd=",sd_sal1,"\n",
+  "APR1: mean=",mean_apr1,", min=",min_apr1,", max=",max_apr1,", sd=",sd_apr1,"\n",
+  sep=""
+)
+tuna$week <- 1:nrow(tuna)
+
+plot(tuna$week, tuna$sal1, type="l",
+     main="Sales (SAL1) over weeks", xlab="Week", ylab="SAL1")
+
+
+plot(tuna$week, tuna$apr1, type="l",
+     main="Price (APR1) over weeks", xlab="Week", ylab="APR1")
+
+#b
+plot(tuna$apr1, tuna$sal1,
+     xlab="APR1 (price)", ylab="SAL1 (sales)",
+     main="SAL1 vs APR1")
+
+abline(lm(sal1 ~ apr1, data=tuna), col="red")
+
+correlation = cor(tuna$apr1, tuna$sal1)
+
+cat(
+  "3.31(b)","\n",
+  "Correlation between price and sales =", correlation,"\n",
+  "The relationship is expected to be negative (law of demand).\n",
+  sep="")
+
+#c
+tuna$price1 = 100 * tuna$apr1
+
+mod_c = lm(sal1 ~ price1, data = tuna)
+summary(mod_c)
+
+b2_hat = coef(mod_c)["price1"]
+se_b2  = summary(mod_c)$coefficients[2,2]
+
+df_c = df.residual(mod_c)
+t_crit_c = qt(0.975, df = df_c)
+
+CI_lower = b2_hat - t_crit_c * se_b2
+CI_upper = b2_hat + t_crit_c * se_b2
+
+cat(
+  "3.31(c)","\n",
+  "The estimated effect of a 1-cent increase in price on sales is b2_hat =",b2_hat,"\n",
+  "The Critical value is t_crit=",t_crit_c,"\n",
+  "The 95% confidence interval is [",CI_lower,", ",CI_upper,"]\n",
+  sep="")
+
+#d
+x0 = 70
+
+b = coef(mod_c)
+vc = vcov(mod_c)
+
+# y_hat
+y_hat = b[1] + b[2]*x0
+
+# variance
+c_vec = c(1, x0)
+var_yhat = t(c_vec) %*% vc %*% c_vec
+se_yhat = sqrt(var_yhat)
+
+df_d = df.residual(mod_c)
+t_crit_d = qt(0.95, df = df_d)   # 90% CI
+
+CI_lower_d = y_hat - t_crit_d * se_yhat
+CI_upper_d = y_hat + t_crit_d * se_yhat
+
+cat(
+  "3.31(d)","\n",
+  "Point estimate for expected sales when price = 70 cents is y_hat =",y_hat,"\n",
+  "The Critical value is t_crit=",t_crit_d,"\n",
+  "The standard error of expected value is se_yhat=",se_yhat,"\n",
+  "The 90% confidence interval is [",CI_lower_d,", ",CI_upper_d,"]\n",
+  sep=""
+)
+
+#e
+mean_sal1 = mean(tuna$sal1)
+mean_price1 = mean(tuna$price1)
+
+elas_hat = b2_hat * (mean_price1 / mean_sal1)
+se_elas = se_b2 * (mean_price1 / mean_sal1)
+
+t_crit_e = qt(0.975, df = df_c)
+
+CI_lower_e = elas_hat - t_crit_e * se_elas
+CI_upper_e = elas_hat + t_crit_e * se_elas
+
+cat(
+  "3.31(e)","\n",
+  "The estimated elasticity at the sample means is elas_hat =", elas_hat, "\n",
+  "The 95% confidence interval is [", CI_lower_e, ", ", CI_upper_e, "]\n",
+  "Sales are fairly elastic with respect to price.\n",
+  "This makes economic sense because demand for a specific brand usually falls when its price rises.\n",
+  sep="")
+
+#f
+t_stat_f = (elas_hat - (-3)) / se_elas
+t_crit_f = qt(0.95, df_c)
+p_value_f = 2 * (1 - pt(abs(t_stat_f), df_c))
+
+cat(
+  "3.31(f)","\n",
+  "H0: elasticity = -3","\n",
+  "H1: elasticity != -3","\n",
+  "The test statistic is t_stat =", t_stat_f, "\n",
+  "The critical value is ±", t_crit_f, "\n",
+  "The rejection region is t < -", t_crit_f, " or t > ", t_crit_f, "\n",
+  "The p-value is ", p_value_f, "\n",
+  ifelse(p_value_f < 0.10,
+         "Reject H0 at the 10% significance level.\n",
+         "Fail to reject H0 at the 10% significance level.\n"
+  ),
+  sep=""
+)
