@@ -1,3 +1,5 @@
+#3.23(d)
+
 ```{r}
 library("POE5Rdata")
 data("collegetown")
