@@ -1,0 +1,101 @@
+---
+title: "HW2"
+output: html_document
+date: "2026-03-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+以下為第3.23題
+```{r}
+# 1. 讀資料
+collegetown <- read.csv("C:/Users/tiffa/Downloads/collegetown.csv")
+head(collegetown)
+
+# 2. 建立模型 PRICE = a1 + a2*SQFT^2
+model_quad <- lm(price ~ I(sqft^2), data = collegetown)
+res <- summary(model_quad)
+# 抓參數
+a2_hat <- coef(model_quad)["I(sqft^2)"]
+se_a2 <- res$coefficients["I(sqft^2)", "Std. Error"]
+
+# a. sqft = 20
+# 邊際效應：ME = 2 * a2 * SQFT
+# H0: 2 * a2 * 20 <= 13  => H0: a2 <= 13/40 = 0.325
+sqft_a <- 20
+t_stat_a <- (2 * a2_hat * sqft_a - 13) / (2 * sqft_a * se_a2)
+p_value_a <- 1 - pt(t_stat_a, df = df.residual(model_quad))
+
+# b. sqft = 40
+# H0: 2 * a2 * 40 <= 13  => H0: a2 <= 13/80 = 0.1625
+sqft_b <- 40
+t_stat_b <- (2 * a2_hat * sqft_b - 13) / (2 * sqft_b * se_a2)
+p_value_b <- 1 - pt(t_stat_b, df = df.residual(model_quad))
+
+# a.b. results
+print(res)
+cat("(a) t-stat:", t_stat_a, "P-value:", p_value_a, "\n")
+cat("(b) t-stat:", t_stat_b, "P-value:", p_value_b, "\n")
+
+# c.預測 2000 呎房屋的價格與區間
+# 建立一個sqft = 20的新資料
+new_house <- data.frame(sqft = 20)
+
+pred_c <- predict(model_quad, newdata = new_house, interval = "confidence", level = 0.95)
+print(pred_c)
+
+# d.計算樣本中 2000 呎房屋的實際平均售價
+houses_2000 <- subset(collegetown, sqft == 20)
+actual_mean_2000 <- mean(houses_2000$price)
+
+# c.d. results
+cat("2000呎實際房屋數量:", nrow(houses_2000), "\n")
+cat("實際平均售價:", actual_mean_2000, "\n")
+```
+
+以下為第3.31題
+```{r}
+# 載入資料
+library(PoEdata)
+data("tuna")
+head(tuna)
+
+# a.
+summary_stats <- data.frame(
+  Mean = colMeans(tuna[, c("sal1", "apr1")]),
+  SD = sapply(tuna[, c("sal1", "apr1")], sd),
+  Min = sapply(tuna[, c("sal1", "apr1")], min),
+  Max = sapply(tuna[, c("sal1", "apr1")], max)
+)
+print(summary_stats)
+
+# 畫時間序列圖
+plot(1:52, tuna$sal1, type="l", main="Sales over Weeks", xlab="Week", ylab="Sales")
+plot(1:52, tuna$apr1, type="l", main="Price over Weeks", xlab="Week", ylab="Price")
+
+# b. 散佈圖
+plot(tuna$apr1, tuna$sal1, main="Sales vs Price", xlab="Price (APR1)", ylab="Sales (SAL1)")
+
+# c. 迴歸模型
+tuna$price1 <- 100 * tuna$apr1
+model_c <- lm(sal1 ~ price1, data = tuna)
+summary(model_c)
+
+# 95% CI
+confint(model_c, "price1", level = 0.95)
+
+# d. 預測價格為 70 美分時的銷售額
+new_data <- data.frame(price1 = 70)
+predict(model_c, new_data, interval = "confidence", level = 0.90)
+
+# e. 計算平均值處的彈性
+avg_p <- mean(tuna$price1)
+avg_q <- mean(tuna$sal1)
+b2 <- coef(model_c)["price1"]
+elasticity <- b2 * (avg_p / avg_q)
+cat("Elasticity at the means:", elasticity, "\n")
+```
+
