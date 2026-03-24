@@ -1,0 +1,126 @@
+```{r 3.23}
+model <- lm(price ~ I(sqft^2), data = collegetown)
+summary(model)
+
+a2_hat <- coef(model)["I(sqft^2)"]
+se_a2  <- summary(model)$coefficients["I(sqft^2)", "Std. Error"]
+df     <- df.residual(model)
+t_crit <- qt(0.95, df = df)
+
+# === Part (a) ===
+cat("========== Part (a) ==========\n")
+cat("H0: 40*a2 <= 13  vs  H1: 40*a2 > 13 (右尾, 5%)\n\n")
+me_a <- 40 * a2_hat
+t_stat_a <- (me_a - 13) / (40 * se_a2)
+p_val_a  <- pt(t_stat_a, df = df, lower.tail = FALSE)
+cat("邊際效果 (40 * a2_hat)  =", round(me_a, 4), "千美元 =", round(me_a*1000), "美元\n")
+cat("t 統計量               =", round(t_stat_a, 4), "\n")
+cat("臨界值 (右尾 5%)        =", round(t_crit, 4), "\n")
+cat("p-value                =", round(p_val_a, 4), "\n")
+cat("結論: t =", round(t_stat_a,2), ifelse(t_stat_a > t_crit, ">", "<"),
+    "臨界值", round(t_crit,2), "→",
+    ifelse(t_stat_a > t_crit, "拒絕 H0", "無法拒絕 H0"), "\n")
+
+# === Part (b) ===
+cat("\n========== Part (b) ==========\n")
+cat("H0: 80*a2 <= 13  vs  H1: 80*a2 > 13 (右尾, 5%)\n\n")
+me_b <- 80 * a2_hat
+t_stat_b <- (me_b - 13) / (80 * se_a2)
+p_val_b  <- pt(t_stat_b, df = df, lower.tail = FALSE)
+cat("邊際效果 (80 * a2_hat)  =", round(me_b, 4), "千美元 =", round(me_b*1000), "美元\n")
+cat("t 統計量               =", round(t_stat_b, 4), "\n")
+cat("臨界值 (右尾 5%)        =", round(t_crit, 4), "\n")
+cat("p-value                =", round(p_val_b, 6), "\n")
+cat("結論: t =", round(t_stat_b,2), ifelse(t_stat_b > t_crit, ">", "<"),
+    "臨界值", round(t_crit,2), "→",
+    ifelse(t_stat_b > t_crit, "拒絕 H0", "無法拒絕 H0"), "\n")
+
+# === Part (c) ===
+cat("\n========== Part (c) ==========\n")
+pred_c <- predict(model, newdata = data.frame(sqft = 20),
+                  interval = "confidence", level = 0.95)
+cat("預測平均售價 =", round(pred_c[,"fit"], 4), "千美元 = $", round(pred_c[,"fit"]*1000), "\n")
+cat("95% CI =", "[",round(pred_c[,"lwr"], 4),",", round(pred_c[,"upr"], 4), "]","千美元 ","\n")
+
+# === Part (d) ===
+cat("\n========== Part (d) ==========\n")
+houses_20   <- subset(collegetown, sqft == 20.00)
+sample_mean <- mean(houses_20$price)
+cat("sqft = 20 的房子數量   =", nrow(houses_20), "棟\n")
+cat("樣本實際平均售價        =", round(sample_mean, 4), "千美元 = $", round(sample_mean*1000), "\n")
+cat("95% CI                 = [$", round(pred_c[,"lwr"]*1000), ", $", round(pred_c[,"upr"]*1000), "]\n")
+cat("樣本均值在CI內？        →",
+    ifelse(sample_mean >= pred_c[,"lwr"] & sample_mean <= pred_c[,"upr"],
+           "是，與預測相容", "否，高於信賴區間上界"), "\n")
+```
+
+```{r 3.31}
+tuna$week   <- 1:nrow(tuna)
+tuna$price1 <- 100 * tuna$apr1
+
+# === Part (a) ===
+cat("========== Part (a) ==========\n")
+cat("SAL1  均值 =", round(mean(tuna$sal1)), "| 最小值 =", min(tuna$sal1),
+    "| 最大值 =", max(tuna$sal1), "| 標準差 =", round(sd(tuna$sal1)), "\n")
+cat("APR1  均值 =", round(mean(tuna$apr1),3), "| 最小值 =", min(tuna$apr1),
+    "| 最大值 =", max(tuna$apr1), "| 標準差 =", round(sd(tuna$apr1),3), "\n")
+
+par(mfrow = c(1, 2))
+plot(tuna$week, tuna$sal1, type = "l", col = "blue",
+     xlab = "Week", ylab = "SAL1", main = "SAL1 vs WEEK")
+plot(tuna$week, tuna$apr1, type = "l", col = "red",
+     xlab = "Week", ylab = "APR1", main = "APR1 vs WEEK")
+par(mfrow = c(1, 1))
+
+# === Part (b) ===
+cat("\n========== Part (b) ==========\n")
+plot(tuna$apr1, tuna$sal1, pch = 16, col = "darkgreen",
+     xlab = "APR1 ", ylab = "SAL1 ",
+     main = "SAL1 vs APR1")
+
+# === Part (c) ===
+cat("\n========== Part (c) ==========\n")
+model_tuna <- lm(sal1 ~ price1, data = tuna)
+summary(model_tuna)
+b2_hat <- coef(model_tuna)["price1"]
+se_b2  <- summary(model_tuna)$coefficients["price1", "Std. Error"]
+df_t   <- df.residual(model_tuna)
+ci_b2  <- confint(model_tuna, "price1", level = 0.95)
+cat("β2 點估計 (每漲1分錢銷量變化) =", round(b2_hat, 2), "罐\n")
+cat("95% CI for β2 = [", round(ci_b2[1],2), ",", round(ci_b2[2],2), "]\n")
+
+# === Part (d) ===
+cat("\n========== Part (d) ==========\n")
+pred_d <- predict(model_tuna, newdata = data.frame(price1 = 70),
+                  interval = "confidence", level = 0.90)
+cat("售價 70 分時預測週銷量  =", round(pred_d[,"fit"]), "罐\n")
+cat("售價 70 分時預測週銷量的 90% CI 為  =", "[", round(pred_d[,"lwr"]),"," , round(pred_d[,"upr"]),"]","罐\n")
+
+# === Part (e) ===
+cat("\n========== Part (e) ==========\n")
+mean_price1 <- mean(tuna$price1)
+mean_sal1   <- mean(tuna$sal1)
+elasticity  <- b2_hat * (mean_price1 / mean_sal1)
+se_elas     <- abs(se_b2 * (mean_price1 / mean_sal1))
+t_crit_e    <- qt(0.975, df = df_t)
+ci_elas_low <- elasticity - t_crit_e * se_elas
+ci_elas_up  <- elasticity + t_crit_e * se_elas
+cat("平均 PRICE1 =", round(mean_price1, 2), "分\n")
+cat("平均 SAL1              =", round(mean_sal1), "罐\n")
+cat("彈性估計值             =", round(elasticity, 4), "\n")
+cat("95% CI for 彈性        = [", round(ci_elas_low, 4), ",", round(ci_elas_up, 4), "]\n")
+cat("|彈性| > 1？           →", ifelse(abs(elasticity) > 1, "是，高度有彈性 (elastic)", "否，無彈性 (inelastic)"), "\n")
+
+# === Part (f) ===
+cat("\n========== Part (f) ==========\n")
+cat("H0: 彈性 = -3  vs  H1: 彈性 ≠ -3 (雙尾, 10%)\n\n")
+t_stat_f <- (elasticity - (-3)) / se_elas
+p_val_f  <- 2 * pt(abs(t_stat_f), df = df_t, lower.tail = FALSE)
+t_crit_f <- qt(0.95, df = df_t)
+cat("t 統計量               =", round(t_stat_f, 4), "\n")
+cat("臨界值 (雙尾 10%)       = ±", round(t_crit_f, 4), "\n")
+cat("p-value                =", round(p_val_f, 4), "\n")
+cat("結論: |t| =", round(abs(t_stat_f),2), ifelse(abs(t_stat_f) > t_crit_f, ">", "<"),
+    "臨界值", round(t_crit_f,2), "→",
+    ifelse(abs(t_stat_f) > t_crit_f, "拒絕 H0，彈性顯著不等於 -3", "無法拒絕 H0"), "\n")
+```
