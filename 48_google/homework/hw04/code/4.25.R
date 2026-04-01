@@ -1,68 +1,70 @@
-  # 清除記憶體
-  rm(list=ls())
+rm(list=ls())
 
-# 載入 POE5Rdata 套件與繪圖套件
+# 載入必要套件 (新增 sandwich 與 lmtest 用於穩健標準誤)
 if(!require(POE5Rdata)) install.packages("POE5Rdata")
-if(!require(ggplot2)) install.packages("ggplot2")
-if(!require(tseries)) install.packages("tseries") # 用於 Jarque-Bera 檢定
+if(!require(tseries)) install.packages("tseries")
+if(!require(stargazer)) install.packages("stargazer")
+if(!require(sandwich)) install.packages("sandwich")
+if(!require(lmtest)) install.packages("lmtest")
 
 library(POE5Rdata)
-library(ggplot2)
 library(tseries)
+library(stargazer)
+library(sandwich)
+library(lmtest)
 
-# 呼叫數據集
+# 1. 數據載入
 data("collegetown")
 df <- collegetown
 
-# --- 1. 模型估計 ---
-
-# (c) 線性模型 (用於比較)
-mod_lin <- lm(price ~ sqft, data = df)
-
-# (a) Log-Linear 模型
-mod_loglin <- lm(log(price) ~ sqft, data = df)
-
-# (b) Log-Log 模型
+# 2. 模型估計
+mod_linear <- lm(price ~ sqft, data = df)
+mod_loglinear <- lm(log(price) ~ sqft, data = df)
 mod_loglog <- lm(log(price) ~ log(sqft), data = df)
 
-# --- 2. 數值摘要與預測 ---
+# 3. 計算穩健標準誤 (Robust Standard Errors - HC1)
+cov_linear <- vcovHC(mod_linear, type = "HC1")
+robust_se_linear <- sqrt(diag(cov_linear))
 
-# 定義預測點 SQFT = 27 (單位通常為 100 sqft，請根據 .def 檔案確認，此處假設為 27)
+cov_loglinear <- vcovHC(mod_loglinear, type = "HC1")
+robust_se_loglinear <- sqrt(diag(cov_loglinear))
+
+cov_loglog <- vcovHC(mod_loglog, type = "HC1")
+robust_se_loglog <- sqrt(diag(cov_loglog))
+
+# --- 輸出敘述性統計表 ---
+print("--- 敘述性統計 (Descriptive Statistics) ---")
+stargazer(df[, c("price", "sqft")], type = "text", 
+          title="Descriptive Statistics", digits=2)
+
+# --- 輸出穩健迴歸對照表 ---
+print("--- 穩健標準誤迴歸模型對照表 (Robust SE) ---")
+stargazer(mod_linear, mod_loglinear, mod_loglog, 
+          type = "text", 
+          se = list(robust_se_linear, robust_se_loglinear, robust_se_loglog),
+          column.labels = c("Linear", "Log-Linear", "Log-Log"),
+          digits = 4)
+
+# 4. 預測與「偏誤修正 (Retransformation Bias Correction)」
 x_new <- data.frame(sqft = 27)
 
-# 預測與區間 (需注意 log 模型需轉換回原始尺度)
-# 此處先進行估計摘要
-print("Log-Linear Model Summary:")
-print(summary(mod_loglin))
+# Linear 預測 (無需修正)
+pred_lin <- predict(mod_linear, x_new)
 
-print("Log-Log Model Summary:")
-print(summary(mod_loglog))
+# Log-Linear 預測與修正
+sigma_loglin <- summary(mod_loglinear)$sigma
+pred_loglin_raw <- predict(mod_loglinear, x_new)
+# 修正公式：E[y|x] = exp(ln_y + sigma^2 / 2)
+pred_loglin_corrected <- exp(pred_loglin_raw + (sigma_loglin^2)/2)
 
-# --- 3. 殘差分析與檢定 ---
+# Log-Log 預測與修正
+sigma_loglog <- summary(mod_loglog)$sigma
+pred_loglog_raw <- predict(mod_loglog, x_new)
+pred_loglog_corrected <- exp(pred_loglog_raw + (sigma_loglog^2)/2)
 
-# Jarque-Bera 檢定
-jb_loglin <- jarque.bera.test(residuals(mod_loglin))
-jb_loglog <- jarque.bera.test(residuals(mod_loglog))
-
-print("Jarque-Bera Test (Log-Linear):")
-print(jb_loglin)
-
-# --- 4. 繪圖輸出 ---
-
-# 圖片 4.25_resid_hist.png (殘差直方圖)
-png("4.25_resid_hist.png", width = 800, height = 600)
-par(mfrow=c(1,2))
-hist(residuals(mod_loglin), main="Log-Linear Residuals", xlab="Residuals")
-hist(residuals(mod_loglog), main="Log-Log Residuals", xlab="Residuals")
-dev.off()
-
-# 圖片 4.25_resid_plot.png (殘差對 SQFT 散佈圖)
-png("4.25_resid_plot.png", width = 800, height = 600)
-par(mfrow=c(1,2))
-plot(df$sqft, residuals(mod_loglin), main="Log-Linear: Resid vs SQFT")
-abline(h=0, col="red")
-plot(log(df$sqft), residuals(mod_loglog), main="Log-Log: Resid vs Log(SQFT)")
-abline(h=0, col="red")
-dev.off()
-
-print(paste("執行完成。圖片已儲存於:", getwd()))
+print("--- SQFT = 27 的房價預測 (加入變異數修正) ---")
+print(data.frame(
+  Model = c("Linear", "Log-Linear", "Log-Log"),
+  Uncorrected_Forecast = c(pred_lin, exp(pred_loglin_raw), exp(pred_loglog_raw)),
+  Corrected_Forecast = c(pred_lin, pred_loglin_corrected, pred_loglog_corrected)
+))
