@@ -68,3 +68,25 @@ print(data.frame(
   Uncorrected_Forecast = c(pred_lin, exp(pred_loglin_raw), exp(pred_loglog_raw)),
   Corrected_Forecast = c(pred_lin, pred_loglin_corrected, pred_loglog_corrected)
 ))
+
+# (c) 計算 Generalized R^2
+
+# 1. Linear 模型的 R^2 (與原本相同)
+r2_linear <- summary(mod_linear)$r.squared
+
+# 2. Log-Linear 的 Generalized R^2 (含變異數修正)
+sigma_loglin <- summary(mod_loglinear)$sigma
+pred_loglin_all <- exp(predict(mod_loglinear) + (sigma_loglin^2)/2)
+gen_r2_loglinear <- (cor(df$price, pred_loglin_all))^2
+
+# 3. Log-Log 的 Generalized R^2 (含變異數修正)
+sigma_loglog <- summary(mod_loglog)$sigma
+pred_loglog_all <- exp(predict(mod_loglog) + (sigma_loglog^2)/2)
+gen_r2_loglog <- (cor(df$price, pred_loglog_all))^2
+
+# 輸出表格對照
+print(data.frame(
+  Model = c("Linear", "Log-Linear", "Log-Log"),
+  Original_R2 = c(r2_linear, summary(mod_loglinear)$r.squared, summary(mod_loglog)$r.squared),
+  Generalized_R2 = c(r2_linear, gen_r2_loglinear, gen_r2_loglog)
+))
