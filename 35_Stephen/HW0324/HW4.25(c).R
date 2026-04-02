@@ -1,3 +1,5 @@
+#(c)
+
 #modal(a)
 log_linear = lm(log(price)~sqft,data = collegetown)
 log_linear
