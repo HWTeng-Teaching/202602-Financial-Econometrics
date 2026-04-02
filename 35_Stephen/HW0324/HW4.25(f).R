@@ -1,3 +1,5 @@
+#(f)
+
 library(POE5Rdata)
 data("collegetown")
 
