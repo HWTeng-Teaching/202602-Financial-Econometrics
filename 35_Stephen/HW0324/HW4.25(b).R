@@ -1,3 +1,5 @@
+#(b)
+
 rm(list = ls())
 
 library(POE5Rdata)
