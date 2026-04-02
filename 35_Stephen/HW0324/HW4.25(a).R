@@ -11,6 +11,7 @@ ln_sqft <- log(collegetown$sqft)
 
 #4.25
 #(a)
+
 model1 <- lm(ln_price~sqft,data = D)
 x_p <- data.frame(sqft=c(x_mean))
 predict_lny <- predict(model1,newdata=x_p)  #newdata
