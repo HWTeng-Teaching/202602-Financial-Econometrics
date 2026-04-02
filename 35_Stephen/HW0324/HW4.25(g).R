@@ -1,4 +1,5 @@
-#04.25(g)
+#(g)
+
 model_1 = lm(ln_price~sqft , data = data)
 model_2 = lm(ln_price~ln_sqft , data = data)
 model_3 = lm(price~sqft , data = data)
