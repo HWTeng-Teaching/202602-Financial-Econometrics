@@ -1,3 +1,5 @@
+#(e)
+
 library(POE5Rdata)
 data(collegetown)
 price = collegetown$price   
@@ -14,5 +16,3 @@ c_residual = resid(linear_linear)    # Residual of linear_linear model
 plot(a_residual~sqft, main = "The relationship between log_linear residual and sqft",,ylim=c(-200,200))   
 plot(b_residual~sqft, main = "The relationship between log_log residual and sqft",ylim=c(-200,200))
 plot(c_residual~sqft, main = "The relationship between linear_linear residual and sqft",ylim=c(-200,200))   # To control residuals value in the same range of y axis
-
-
