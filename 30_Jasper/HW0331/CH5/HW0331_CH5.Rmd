@@ -1,0 +1,40 @@
+```{r}
+set.seed(0)
+
+sigma2 <- 1000
+N_list <- c(100, 500, 1000, 5000)
+results <- data.frame(
+  N = N_list,
+  var_b2_x = NA,
+  var_beta2mean_x = NA,
+  E_inv_sx2 = NA,
+  E_formula = NA
+)
+
+for (i in seq_along(N_list)) {
+  n <- N_list[i]
+  x <- runif(n, min = 0, max = 10)
+  x_sorted <- sort(x)
+  var_b2 <- sigma2 / sum((x - mean(x))^2)
+  n_half <- n / 2
+  x1_bar <- mean(x_sorted[1:n_half])
+  x2_bar <- mean(x_sorted[(n_half + 1):n])
+  
+  var_beta2mean <- (2 * sigma2) / (n * (x2_bar - x1_bar)^2)
+  
+  sx2 <- sum((x - mean(x))^2) / n
+  inv_sx2 <- 1 / sx2
+
+  formula_term <- 4 / (x2_bar - x1_bar)^2
+  
+  results$var_b2_x[i] <- var_b2
+  results$results_var_beta2mean_x[i] <- var_beta2mean
+  results$E_inv_sx2[i] <- inv_sx2
+  results$E_formula[i] <- formula_term
+}
+
+print("--- Exercise 5.20 (e) Simulation Results ---")
+print(results)
+
+```
+
