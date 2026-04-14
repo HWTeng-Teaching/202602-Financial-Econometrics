@@ -1,0 +1,93 @@
+4.25
+```{r}
+load("C:/Users/jaspe/OneDrive/Desktop/R code/poe5rdata/collegetown.rdata")
+head(collegetown)
+```
+```{r}
+model_a <- lm(log(price) ~ sqft, data = collegetown)
+summary(model_a)
+
+avg_price <- mean(collegetown$price)
+avg_sqft <- mean(collegetown$sqft)
+beta2 <- coef(model_a)["sqft"]
+
+slope_a <- beta2 * avg_price
+elasticity_a <- beta2 * avg_sqft
+
+cat("Log-Linear Slope:", slope_a, "\n")
+cat("Log-Linear Elasticity:", elasticity_a, "\n")
+```
+(b)
+```{r}
+model_b <- lm(log(price) ~ log(sqft), data = collegetown)
+summary(model_b)
+
+alpha2 <- coef(model_b)["log(sqft)"]
+
+slope_b <- alpha2 * (avg_price / avg_sqft)
+elasticity_b <- alpha2
+
+cat("Log-Log Slope:", slope_b, "\n")
+cat("Log-Log Elasticity:", elasticity_b, "\n")
+```
+(c)
+```{r}
+model_c <- lm(price ~ sqft, data = collegetown)
+r2_linear <- summary(model_c)$r.squared
+
+pred_price_a <- exp(predict(model_a))
+gen_r2_a <- cor(collegetown$price, pred_price_a)^2
+
+pred_price_b <- exp(predict(model_b))
+gen_r2_b <- cor(collegetown$price, pred_price_b)^2
+
+cat("Linear R2:", r2_linear, "\n")
+cat("Log-Linear Generalized R2:", gen_r2_a, "\n")
+cat("Log-Log Generalized R2:", gen_r2_b, "\n")
+```
+(d)
+```{r}
+library(tseries)
+
+res_a <- residuals(model_a)
+res_b <- residuals(model_b)
+res_c <- residuals(model_c)
+
+par(mfrow=c(1,3))
+hist(res_a, main="Resid (Log-Lin)", col="lightblue")
+hist(res_b, main="Resid (Log-Log)", col="lightgreen")
+hist(res_c, main="Resid (Linear)", col="pink")
+
+jb_a <- jarque.bera.test(res_a)
+jb_b <- jarque.bera.test(res_b)
+jb_c <- jarque.bera.test(res_c)
+
+print(jb_a)
+print(jb_b)
+print(jb_c)
+```
+(e)
+```{r}
+par(mfrow=c(1,3))
+plot(collegetown$sqft, res_a, main="Resid vs SQFT (Log-Lin)")
+abline(h=0, col="red")
+plot(collegetown$sqft, res_b, main="Resid vs SQFT (Log-Log)")
+abline(h=0, col="red")
+plot(collegetown$sqft, res_c, main="Resid vs SQFT (Linear)")
+abline(h=0, col="red")
+```
+(f) & (g)
+```{r}
+new_data <- data.frame(sqft = 27)
+
+pred_a <- predict(model_a, new_data, interval="prediction", level=0.95)
+price_a <- exp(pred_a)
+
+pred_b <- predict(model_b, new_data, interval="prediction", level=0.95)
+price_b <- exp(pred_b)
+
+price_c <- predict(model_c, new_data, interval="prediction", level=0.95)
+
+print(list(Log_Linear=price_a, Log_Log=price_b, Linear=price_c))
+```
+

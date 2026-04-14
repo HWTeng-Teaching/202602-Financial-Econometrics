@@ -1,0 +1,47 @@
+```{r}
+set.seed(123)
+N_values <- c(100, 500, 1000, 5000)
+sigma2 <- 1000
+
+# 建立空資料框儲存結果
+results <- data.frame()
+
+for (N in N_values) {
+  # 產生服從均勻分配的樣本並排序
+  x <- runif(N, min = 0, max = 10)
+  x <- sort(x)
+  
+  # 分成前後兩半部
+  half_N <- N / 2
+  x1 <- x[1:half_N]
+  x2 <- x[(half_N + 1):N]
+  
+  # 計算平均數
+  x1_bar <- mean(x1)
+  x2_bar <- mean(x2)
+  x_bar <- mean(x)
+  
+  # 計算 sx2 (使用 N 作為分母)
+  sx2 <- sum((x - x_bar)^2) / N
+  
+  # i. 計算兩個變異數
+  var_b2_x <- sigma2 / (N * sx2)
+  var_beta_mean_x <- (4 * sigma2) / (N * (x2_bar - x1_bar)^2)
+  
+  # ii. 計算期望值的估計項
+  est_term1 <- 1 / sx2
+  est_term2 <- 4 / (x2_bar - x1_bar)^2
+  
+  # 紀錄結果
+  results <- rbind(results, data.frame(
+    N = N,
+    var_b2_OLS = var_b2_x,
+    var_beta_mean = var_beta_mean_x,
+    Est_E_sx2_inv = est_term1,
+    Est_E_diff_inv = est_term2
+  ))
+}
+
+knitr::kable(results, digits = 4)
+```
+

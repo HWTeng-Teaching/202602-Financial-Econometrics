@@ -1,0 +1,87 @@
+---
+title: "5.20(e) "
+output:
+  html_document: default
+  pdf_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(readr)
+library(dplyr)
+```
+
+```{r}
+
+set.seed(123)
+
+sigma2 <- 1000
+N_values <- c(100, 500, 1000, 5000)
+R <- 5000   # number of simulations
+
+# function to compute quantities for one simulated sample of x
+one_run <- function(N, sigma2 = 1000) {
+  # generate x ~ Uniform(0,10)
+  x <- runif(N, min = 0, max = 10)
+  
+  # sort x in increasing order
+  x <- sort(x)
+  
+  # split sample into first half and second half
+  n1 <- N / 2
+  x1 <- x[1:n1]
+  x2 <- x[(n1 + 1):N]
+  
+  # sample means of two halves
+  xbar1 <- mean(x1)
+  xbar2 <- mean(x2)
+  
+  # sample variance of x using N as divisor
+  xbar <- mean(x)
+  sx2 <- mean((x - xbar)^2)
+  
+  # (i) conditional variances
+  # var(b2 | x) = sigma2 / sum((xi - xbar)^2)
+  # since sx2 = (1/N) * sum((xi - xbar)^2),
+  # sum((xi - xbar)^2) = N * sx2
+  var_b2_given_x <- sigma2 / sum((x - xbar)^2)
+  
+  # var(beta2_mean | x)
+  # = var((ybar2 - ybar1)/(xbar2 - xbar1) | x)
+  # = var(ybar2 - ybar1 | x) / (xbar2 - xbar1)^2
+  # = [sigma2/(N/2) + sigma2/(N/2)] / (xbar2 - xbar1)^2
+  # = (4*sigma2/N) / (xbar2 - xbar1)^2
+  var_b2mean_given_x <- (4 * sigma2 / N) / (xbar2 - xbar1)^2
+  
+  # (ii) quantities whose expectations are requested
+  inv_sx2 <- 1 / sx2
+  four_over_gap2 <- 4 / (xbar2 - xbar1)^2
+  
+  c(
+    var_b2_given_x = var_b2_given_x,
+    var_b2mean_given_x = var_b2mean_given_x,
+    inv_sx2 = inv_sx2,
+    four_over_gap2 = four_over_gap2
+  )
+}
+
+# run simulations for each N
+results_list <- lapply(N_values, function(N) {
+  sims <- replicate(R, one_run(N, sigma2))
+  sims <- t(sims)
+  
+  data.frame(
+    N = N,
+    E_var_b2_given_x = mean(sims[, "var_b2_given_x"]),
+    E_var_b2mean_given_x = mean(sims[, "var_b2mean_given_x"]),
+    E_inv_sx2 = mean(sims[, "inv_sx2"]),
+    E_4_over_gap2 = mean(sims[, "four_over_gap2"])
+  )
+})
+
+results <- do.call(rbind, results_list)
+
+print(results)
+```
+

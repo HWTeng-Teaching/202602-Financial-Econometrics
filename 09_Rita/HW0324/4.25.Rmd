@@ -1,0 +1,383 @@
+---
+title: "4.25 "
+output:
+  html_document: default
+  pdf_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(readr)
+library(dplyr)
+```
+### (a)
+
+```{r}
+data = read.csv("collegetown.csv")
+
+data <- data %>%
+ mutate(ln_price = log(price))
+
+model <- lm(ln_price ~ sqft, data = data)
+
+summary(model)
+mean_price <- mean(data$price)
+beta2 <- coef(model)["sqft"]
+
+slope_mean <- beta2 * mean_price
+mean_sqft <- mean(data$sqft)
+elasticity_mean <- beta2 * mean_sqft
+cat("Slope at means (a) = ",slope_mean,"\n")
+cat("Elasticity at means (a) = ", elasticity_mean, "\n\n")
+```
+
+The estimated log-linear model is:
+
+\[
+\ln(PRICE) = 4.3939 + 0.03604 \cdot SQFT+e
+\]
+
+The intercept (4.3939) represents the predicted log price when SQFT equals zero, which has no practical economic meaning.
+
+The slope coefficient (0.03604) implies that a one-unit increase in SQFT increases house price by approximately 3.604%, holding other factors constant.
+
+The marginal effect of SQFT on PRICE is given by:
+
+\[
+\frac{\partial PRICE}{\partial SQFT} = \beta_2 \cdot PRICE
+\]
+
+At the sample mean, the slope is:
+
+\[
+9.019661
+\]
+
+This means that at the average house price, increasing SQFT by one unit increases the price by approximately 9.02 dollars.
+
+The elasticity of PRICE with respect to SQFT is:
+
+\[
+Elasticity = \beta_2 \cdot SQFT
+\]
+
+At the sample mean, the elasticity is:
+
+\[
+0.9833701
+\]
+
+This implies that at the average house size, a 1% increase in SQFT leads to approximately a 0.983% increase in house price.
+
+The marginal effect is not constant and depends on the level of PRICE, which is a key feature of the log-linear model.
+
+### (b)
+
+```{r}
+data <- data %>%
+  mutate(
+    ln_price = log(price),
+    ln_sqft  = log(sqft)
+  )
+
+model_b <- lm(ln_price ~ ln_sqft, data = data)
+
+summary(model_b)
+
+alpha2 <- coef(model_b)["ln_sqft"]
+
+mean_price <- mean(data$price)
+mean_sqft  <- mean(data$sqft)
+
+slope_b <- alpha2 * (mean_price / mean_sqft)
+
+elas_b <- alpha2
+
+cat("Slope at means (b) =", slope_b, "\n")
+cat("Elasticity (b) =", elas_b, "\n")
+```
+
+The estimated log-log model is:
+
+\[
+\ln(PRICE) = 2.0497 + 1.0248 \cdot \ln(SQFT)+e
+\]
+
+The intercept (2.0497) represents the predicted log price when ln(SQFT) equals zero, which has no clear economic interpretation.
+
+The slope coefficient (1.0248) is the elasticity of PRICE with respect to SQFT. It implies that a 1% increase in SQFT leads to approximately a 1.0248% increase in house price, holding other factors constant.
+
+The marginal effect of SQFT on PRICE is given by:
+
+\[
+\frac{\partial PRICE}{\partial SQFT} = \alpha_2 \cdot \frac{PRICE}{SQFT}
+\]
+
+At the sample mean, the slope is:
+
+\[
+9.399923
+\]
+
+This means that at the average values of PRICE and SQFT, increasing SQFT by one unit increases the price by approximately 9.40 dollars.
+
+The elasticity is:
+
+\[
+1.024828
+\]
+
+This confirms that house price is approximately unit elastic with respect to SQFT.
+
+Unlike the log-linear model, the elasticity in the log-log model is constant and does not depend on the level of SQFT or PRICE.
+
+### (c)
+
+```{r}
+model_lin <- lm(price ~ sqft, data = data)
+
+model_loglin <- lm(log(price) ~ sqft, data = data)
+
+model_loglog <- lm(log(price) ~ log(sqft), data = data)
+
+R2_linear <- summary(model_lin)$r.squared
+
+
+yhat_loglin <- exp(fitted(model_loglin))
+R2_loglin_gen <- cor(data$price, yhat_loglin)^2
+
+yhat_loglog <- exp(fitted(model_loglog))
+R2_loglog_gen <- cor(data$price, yhat_loglog)^2
+
+cat("R² (Linear model) =", R2_linear, "\n")
+cat("Generalized R² (log-linear) =", R2_loglin_gen, "\n")
+cat("Generalized R² (log-log) =", R2_loglog_gen, "\n")
+```
+
+The R² from the linear model is:
+
+\[
+0.6413167
+\]
+
+The generalized R² values for the transformed models are:
+
+- Log-linear model:  
+\[
+0.6621612
+\]
+
+- Log-log model:  
+\[
+0.6445084
+\]
+
+Since the dependent variables differ across models (PRICE vs. ln(PRICE)), the standard R² values are not directly comparable. Therefore, we use the generalized R², defined as the squared correlation between the actual PRICE and the predicted PRICE.
+
+Comparing the models, the log-linear model has the highest generalized R², indicating that it provides the best fit among the three models.
+
+The log-log model performs slightly better than the linear model, but not as well as the log-linear model.
+
+Overall, the results suggest that transforming the dependent variable improves model fit, especially in the log-linear specification.
+
+### (d)
+
+```{r}
+library(tseries)
+
+model_a <- lm(log(price) ~ sqft, data = data)        
+model_b <- lm(log(price) ~ log(sqft), data = data)   
+model_c <- lm(price ~ sqft, data = data)             
+
+res_a <- resid(model_a)
+res_b <- resid(model_b)
+res_c <- resid(model_c)
+
+par(mfrow = c(1, 3))
+
+hist(res_a,
+     main = "Residuals: Log-linear",
+     xlab = "Residuals",
+     col = "lightgray",
+     border = "white")
+
+hist(res_b,
+     main = "Residuals: Log-log",
+     xlab = "Residuals",
+     col = "lightgray",
+     border = "white")
+
+hist(res_c,
+     main = "Residuals: Linear",
+     xlab = "Residuals",
+     col = "lightgray",
+     border = "white")
+
+par(mfrow = c(1, 1))
+
+jb_a <- jarque.bera.test(res_a)
+jb_b <- jarque.bera.test(res_b)
+jb_c <- jarque.bera.test(res_c)
+
+cat("JB statistic (a) =", jb_a$statistic, "\n")
+cat("p-value (a) =", jb_a$p.value, "\n\n")
+
+cat("JB statistic (b) =", jb_b$statistic, "\n")
+cat("p-value (b) =", jb_b$p.value, "\n\n")
+
+cat("JB statistic (c) =", jb_c$statistic, "\n")
+cat("p-value (c) =", jb_c$p.value, "\n\n")
+```
+
+Histograms of the least squares residuals were constructed for the three models, and Jarque–Bera tests were performed to assess normality.
+
+The Jarque–Bera results are:
+
+- Model (a), log-linear:  
+  JB statistic = 26.67989, p-value = 1.609651e-06
+
+- Model (b), log-log:  
+  JB statistic = 14.27871, p-value = 0.0007932632
+
+- Model (c), linear:  
+  JB statistic = 221.1115, p-value = 0
+
+For all three models, the p-values are far below 0.05, so the null hypothesis of normality is rejected in every case. Therefore, the residuals are not compatible with the assumption of normality.
+
+However, the residuals from the log-log model appear to be closer to normality than those from the log-linear model, since its Jarque–Bera statistic is smaller. The linear model performs the worst, with a much larger Jarque–Bera statistic, indicating the strongest departure from normality.
+
+Overall, although none of the three residual distributions can be considered normal, the transformed models, especially the log-log model, appear to be closer to normality than the linear model.
+
+### (e)
+
+```{r}
+model_a <- lm(log(price) ~ sqft, data = data)        
+model_b <- lm(log(price) ~ log(sqft), data = data)   
+model_c <- lm(price ~ sqft, data = data)            
+
+res_a <- resid(model_a)
+res_b <- resid(model_b)
+res_c <- resid(model_c)
+
+par(mfrow = c(1, 3))
+
+plot(data$sqft, res_a,
+     main = "Residuals vs SQFT (log-linear)",
+     xlab = "SQFT",
+     ylab = "Residuals",
+     pch = 16, col = "gray")
+
+abline(h = 0, col = "red", lwd = 2)
+
+plot(data$sqft, res_b,
+     main = "Residuals vs SQFT (log-log)",
+     xlab = "SQFT",
+     ylab = "Residuals",
+     pch = 16, col = "gray")
+
+abline(h = 0, col = "red", lwd = 2)
+
+plot(data$sqft, res_c,
+     main = "Residuals vs SQFT (linear)",
+     xlab = "SQFT",
+     ylab = "Residuals",
+     pch = 16, col = "gray")
+
+abline(h = 0, col = "red", lwd = 2)
+
+par(mfrow = c(1, 1))
+```
+
+The residuals from each model are plotted against SQFT to assess potential patterns.
+
+For the **linear model**, the residuals display a clear fan-shaped pattern, with the spread of residuals increasing as SQFT increases. This indicates the presence of heteroskedasticity, meaning the variance of the errors is not constant.
+
+For the **log-linear model**, the residuals appear more evenly distributed around zero, with a more stable spread across different values of SQFT. However, there is still some mild dispersion as SQFT increases.
+
+For the **log-log model**, the residuals show the most stable variance among the three models. The spread is relatively uniform, and there is no strong visible pattern, suggesting that heteroskedasticity is less severe.
+
+Overall, the linear model exhibits the strongest heteroskedasticity, while the log transformations (especially the log-log model) improve the distribution of residuals and provide a more appropriate specification.
+
+### (f)
+
+```{r}
+new_data <- data.frame(sqft = 27)
+
+pred_c <- predict(model_c, newdata = new_data)
+
+cat("--- Linear Model ---\n")
+cat("Predicted PRICE =", pred_c, "\n\n")
+
+
+pred_log_a <- predict(model_a, newdata = new_data)
+
+sigma2_a <- summary(model_a)$sigma^2
+pred_a <- exp(pred_log_a + sigma2_a / 2)
+
+cat("--- Log-Linear Model ---\n")
+cat("Predicted PRICE =", pred_a, "\n\n")
+
+
+pred_log_b <- predict(model_b, newdata = new_data)
+
+sigma2_b <- summary(model_b)$sigma^2
+pred_b <- exp(pred_log_b + sigma2_b / 2)
+
+cat("--- Log-Log Model ---\n")
+cat("Predicted PRICE =", pred_b, "\n")
+```
+
+### (g)
+
+```{r}
+new_data <- data.frame(sqft = 27)
+
+mod_a <- lm(log(price) ~ sqft, data = data)        
+mod_b <- lm(log(price) ~ log(sqft), data = data)   
+mod_c <- lm(price ~ sqft, data = data)             
+
+pi_c <- predict(mod_c, newdata = new_data, interval = "prediction", level = 0.95)
+
+cat("--- Linear Model ---\n")
+print(pi_c)
+cat("\n")
+
+pi_log_a <- predict(mod_a, newdata = new_data, interval = "prediction", level = 0.95)
+
+sigma2_a <- summary(mod_a)$sigma^2
+point_a <- exp(pi_log_a[1, "fit"] + sigma2_a / 2)
+
+lwr_a <- exp(pi_log_a[1, "lwr"])
+upr_a <- exp(pi_log_a[1, "upr"])
+
+cat("--- Log-Linear Model ---\n")
+cat("Point prediction =", point_a, "\n")
+cat("95% prediction interval = [", lwr_a, ",", upr_a, "]\n\n")
+
+pi_log_b <- predict(mod_b, newdata = new_data, interval = "prediction", level = 0.95)
+
+sigma2_b <- summary(mod_b)$sigma^2
+point_b <- exp(pi_log_b[1, "fit"] + sigma2_b / 2)
+
+lwr_b <- exp(pi_log_b[1, "lwr"])
+upr_b <- exp(pi_log_b[1, "upr"])
+
+cat("--- Log-Log Model ---\n")
+cat("Point prediction =", point_b, "\n")
+cat("95% prediction interval = [", lwr_b, ",", upr_b, "]\n")
+```
+
+## (h)
+
+Based on the results in this problem, the **log-linear** and **log-log** models both perform better than the simple linear model.
+
+First, the transformed models fit the data slightly better when we compare the generalized \(R^2\) values. The generalized \(R^2\) is highest for the **log-linear model** (0.6622), followed by the **log-log model** (0.6445), while the linear model has the lowest fit (0.6413).
+
+Second, the residual analysis suggests that the **linear model is the least appropriate**. Its residual plot against SQFT shows a clear fan-shaped pattern, indicating substantial heteroskedasticity. The Jarque–Bera statistic is also much larger for the linear model (221.1115), showing the strongest departure from normality.
+
+Both transformed models improve the residual behavior. The **log-log model** has the smallest Jarque–Bera statistic (14.2787), so its residuals are closest to normality. It also shows the most stable residual variance across values of SQFT. However, the **log-linear model** has the best overall fit according to the generalized \(R^2\).
+
+If I had to choose one specification, I would use the **log-linear model**. It provides the best fit among the three models and also improves the heteroskedasticity problem relative to the linear model. Although the log-log model has residuals that are somewhat closer to normality, the log-linear model performs slightly better overall in explaining house price.
+
+In addition, the log-linear model is easy to interpret: a one-unit increase in SQFT changes house price by an approximate percentage amount. For these data, that specification seems to provide the best balance of fit, interpretation, and residual behavior.
