@@ -1,0 +1,209 @@
+```{r}
+install.packages(c("lmtest", "sandwich", "car"))
+
+library(lmtest)
+library(sandwich)
+library(car)
+
+load("C:/Users/jaspe/OneDrive/Desktop/R code/poe5rdata/vacation.rdata")
+head(vacation)
+```
+(a)
+```{r}
+model_ols <- lm(miles ~ income + age + kids, data = vacation)
+
+summary(model_ols)
+
+confint(model_ols, level = 0.95)
+
+confint(model_ols, "kids", level = 0.95)
+```
+(b)
+```{r}
+resid_ols <- residuals(model_ols)
+
+plot(vacation$income, resid_ols,
+     xlab = "income",
+     ylab = "OLS Residuals",
+     main = "OLS Residuals vs income")
+
+abline(h = 0, col = "red", lwd = 2)
+
+# Residuals vs AGE
+plot(vacation$age, resid_ols,
+     xlab = "age",
+     ylab = "OLS Residuals",
+     main = "OLS Residuals vs age")
+
+abline(h = 0, col = "red", lwd = 2)
+```
+(c)
+```{r}
+# Sort by INCOME
+vacation_sorted <- vacation[order(vacation$income), ]
+
+# First 90 observations: low income group
+low_income <- vacation_sorted[1:90, ]
+
+# Last 90 observations: high income group
+high_income <- vacation_sorted[(nrow(vacation_sorted) - 90 + 1):nrow(vacation_sorted), ]
+
+# Estimate separate regressions
+model_low <- lm(miles ~ income + age + kids, data = low_income)
+model_high <- lm(miles ~ income + age + kids, data = high_income)
+
+summary(model_low)
+summary(model_high)
+
+# Get SSE / SSR
+SSR_low <- sum(residuals(model_low)^2)
+SSR_high <- sum(residuals(model_high)^2)
+
+# degrees of freedom
+n_low <- nobs(model_low)
+n_high <- nobs(model_high)
+k <- length(coef(model_low))
+
+df_low <- n_low - k
+df_high <- n_high - k
+
+# Estimate variances
+sigma2_low <- SSR_low / df_low
+sigma2_high <- SSR_high / df_high
+
+# Goldfeld-Quandt F statistic
+# H1: variance is larger for high income group
+F_stat <- sigma2_high / sigma2_low
+
+# 5% right-tail critical value
+F_crit <- qf(0.95, df_high, df_low)
+
+# p-value
+p_value <- 1 - pf(F_stat, df_high, df_low)
+
+F_stat
+F_crit
+p_value
+```
+```{r}
+if (F_stat > F_crit) {
+  print("Reject H0: heteroskedasticity is present.")
+} else {
+  print("Do not reject H0: no strong evidence of heteroskedasticity.")
+}
+
+```
+(d)
+```{r}
+# Robust covariance matrix
+robust_vcov <- vcovHC(model_ols, type = "HC1")
+
+# Robust coefficient table
+coeftest(model_ols, vcov = robust_vcov)
+```
+```{r}
+robust_se <- sqrt(diag(robust_vcov))
+
+beta_kids <- coef(model_ols)["kids"]
+robust_se_kids <- robust_se["kids"]
+
+n <- nobs(model_ols)
+k <- length(coef(model_ols))
+df <- n - k
+
+t_crit <- qt(0.975, df)
+
+lower_robust <- beta_kids - t_crit * robust_se_kids
+upper_robust <- beta_kids + t_crit * robust_se_kids
+
+c(lower_robust, upper_robust)
+```
+```{r}
+result_d <- data.frame(
+  coefficient = beta_kids,
+  robust_se = robust_se_kids,
+  lower_95 = lower_robust,
+  upper_95 = upper_robust
+)
+
+result_d
+```
+(e)
+```{r}
+model_gls <- lm(miles ~ income + age + kids, data = vacation, weights = 1 / income^2)
+
+summary(model_gls)
+
+confint(model_gls, "kids", level = 0.95)
+```
+```{r}
+robust_vcov_gls <- vcovHC(model_gls, type = "HC1")
+
+coeftest(model_gls, vcov = robust_vcov_gls)
+```
+```{r}
+robust_se_gls <- sqrt(diag(robust_vcov_gls))
+
+beta_kids_gls <- coef(model_gls)["kids"]
+robust_se_kids_gls <- robust_se_gls["kids"]
+
+n <- nobs(model_gls)
+k <- length(coef(model_gls))
+df <- n - k
+
+t_crit <- qt(0.975, df)
+
+lower_gls_robust <- beta_kids_gls - t_crit * robust_se_kids_gls
+upper_gls_robust <- beta_kids_gls + t_crit * robust_se_kids_gls
+
+c(lower_gls_robust, upper_gls_robust)
+```
+
+Summary
+```{r}
+# OLS conventional
+beta_kids_ols <- coef(model_ols)["kids"]
+se_kids_ols <- summary(model_ols)$coefficients["kids", "Std. Error"]
+
+# OLS robust
+robust_vcov_ols <- vcovHC(model_ols, type = "HC1")
+se_kids_ols_robust <- sqrt(diag(robust_vcov_ols))["kids"]
+
+# GLS conventional
+beta_kids_gls <- coef(model_gls)["kids"]
+se_kids_gls <- summary(model_gls)$coefficients["kids", "Std. Error"]
+
+# GLS robust
+robust_vcov_gls <- vcovHC(model_gls, type = "HC1")
+se_kids_gls_robust <- sqrt(diag(robust_vcov_gls))["kids"]
+
+# critical value
+n <- nobs(model_ols)
+k <- length(coef(model_ols))
+df <- n - k
+t_crit <- qt(0.975, df)
+
+# summary table
+ci_table <- data.frame(
+  Method = c("OLS conventional", 
+             "OLS robust", 
+             "GLS conventional", 
+             "GLS robust"),
+  
+  Coefficient = c(beta_kids_ols,
+                  beta_kids_ols,
+                  beta_kids_gls,
+                  beta_kids_gls),
+  
+  SE = c(se_kids_ols,
+         se_kids_ols_robust,
+         se_kids_gls,
+         se_kids_gls_robust)
+)
+
+ci_table$Lower_95 <- ci_table$Coefficient - t_crit * ci_table$SE
+ci_table$Upper_95 <- ci_table$Coefficient + t_crit * ci_table$SE
+
+ci_table
+```
+
