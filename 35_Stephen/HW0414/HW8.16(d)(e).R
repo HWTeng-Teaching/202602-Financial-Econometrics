@@ -34,14 +34,16 @@ lw = hatb4-tc*seb4
 cat("estimate of b4 is",hatb4,"\n")
 cat("[",lw,",",up,"]")
 
-# d.  
+# (d)
+
 cov1 = hccm(mod,type = "hc1")
 seb4.robust = sqrt(cov1[4,4])
 up = hatb4+tc*seb4.robust
 lw = hatb4-tc*seb4.robust
 cat("[",lw,",",up,"]")
 
-# e.
+# (e)
+
 w = 1/income
 mod.gls = lm(mile~income+age+kid,weights = w)
 smod.gls = summary(mod.gls)
