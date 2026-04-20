@@ -1,4 +1,5 @@
 #(a)
+
 library(POE5Rdata)
 library(lmtest)
 library(car)
@@ -10,10 +11,12 @@ summary1=summary(mod1)
 confint(mod1, level = 0.95) #(bi-tc*se(bi), bi+tc*se(bi))
 
 #(b)
+
 plot(vacation$income, mod1[["residuals"]], xlab = 'income', ylab = 'residuals')
 plot(vacation$age, mod1[["residuals"]], xlab = 'age', ylab = 'residuals')
 
 #(c)
+
 vacation_sort = vacation[order(vacation$income), ] #將數據由小到大排序
 vacation_sort1 = head(vacation_sort, 90)
 vacation_sort2 = tail(vacation_sort, 90)
