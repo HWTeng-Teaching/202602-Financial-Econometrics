@@ -1,0 +1,171 @@
+---
+title: "HW0331"
+author: "James"
+date: "2026-04-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+---
+
+# Part (e)
+
+```{r}
+set.seed(123)
+
+N_list <- c(100, 500, 1000, 5000)
+
+for(N in N_list){
+  x <- sort(runif(N, 0, 10))
+  
+  mean_x <- mean(x)
+  mean_x1 <- mean(x[1:(N/2)])
+  mean_x2 <- mean(x[((N/2)+1):N])
+  
+  var_b2 <- 1000 / sum((x - mean_x)^2)
+  var_b2_hat <- (4 * 1000) / (N * (mean_x2 - mean_x1)^2)
+  
+  sx <- sum((x - mean_x)^2) / N
+  
+  cat("Sample size:", N, "\n")
+  cat("Mean x1, x2:", mean_x1, mean_x2, "\n")
+  cat("OLS variance:", var_b2, "\n")
+  cat("Mean estimator variance:", var_b2_hat, "\n")
+  cat("(sx^2)^(-1):", 1/sx, "\n")
+  cat("4/(x2_bar-x1_bar)^2:", 4/(mean_x2 - mean_x1)^2, "\n\n")
+}
+```
+
+---
+
+## Monte Carlo Simulation 
+
+```{r}
+simulate_one_N <- function(N, sigma2 = 1000, R = 5000) {
+  half <- N/2
+  
+  var_b2 <- numeric(R)
+  var_b2mean <- numeric(R)
+  inv_sx2 <- numeric(R)
+  term_mean <- numeric(R)
+  
+  for (r in 1:R) {
+    x <- sort(runif(N, 0, 10))
+    
+    xbar <- mean(x)
+    sx2 <- mean((x - xbar)^2)
+    
+    xbar1 <- mean(x[1:half])
+    xbar2 <- mean(x[(half+1):N])
+    
+    delta <- xbar2 - xbar1
+    
+    var_b2[r] <- sigma2 / (N * sx2)
+    var_b2mean[r] <- sigma2 * 4 / (N * delta^2)
+    inv_sx2[r] <- 1 / sx2
+    term_mean[r] <- 4 / (delta^2)
+  }
+  
+  return(c(
+    E_var_b2 = mean(var_b2),
+    E_var_b2mean = mean(var_b2mean),
+    E_inv_sx2 = mean(inv_sx2),
+    E_term = mean(term_mean)
+  ))
+}
+
+results <- sapply(N_list, simulate_one_N)
+t(results)
+```
+
+---
+
+## Interpretation
+
+* Both variances decrease as (N) increases.
+* OLS variance is smaller than the mean-based estimator.
+* The simulation confirms:
+
+[
+E[(s_x^2)^{-1}] \approx 0.12, \quad
+E\left[\frac{4}{(\bar{x}_2 - \bar{x}_1)^2}\right] \approx 0.16
+]
+
+---
+
+# Part (f)
+
+## Conclusion
+
+* Both estimators have variance decreasing at rate (1/N)
+* The mean-based estimator is **less efficient**
+* Since:
+
+  * it is unbiased
+  * variance → 0
+
+it appears to be **consistent**
+
+---
+
+# Part (h)
+
+## Random Assignment
+
+```{r}
+simulate_h <- function(N, sigma2 = 1000, R = 5000) {
+  half <- N/2
+  
+  term <- numeric(R)
+  
+  for (r in 1:R) {
+    x <- runif(N, 0, 10)
+    x <- sample(x)
+    
+    xbar1 <- mean(x[1:half])
+    xbar2 <- mean(x[(half+1):N])
+    
+    delta <- xbar2 - xbar1
+    term[r] <- 4 / (delta^2)
+  }
+  
+  return(c(mean = mean(term), median = median(term)))
+}
+
+results_h <- sapply(c(100,500,1000), simulate_h)
+t(results_h)
+```
+
+---
+
+## Explanation
+
+When observations are randomly assigned:
+
+[
+\bar{x}_1 \to E[x], \quad \bar{x}_2 \to E[x]
+]
+
+Thus:
+
+[
+\bar{x}_2 - \bar{x}_1 \to 0
+]
+
+This makes the estimator unstable:
+
+[
+\hat{\beta}_{2,mean}
+====================
+
+\beta_2 + \frac{\bar{e}_2 - \bar{e}_1}{\bar{x}_2 - \bar{x}_1}
+]
+
+Since the denominator goes to zero:
+
+variance does not converge to 0
+stimator is NOT consistent
+
+---
