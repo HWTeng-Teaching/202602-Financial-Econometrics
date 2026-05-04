@@ -1,0 +1,185 @@
+---
+title: "HW0428"
+output: html_document
+date: "2026-05-03"
+---
+
+# 10.18
+```{r}
+#install.packages(c("AER", "car"))
+library(AER) 
+library(car)
+library(PoEdata)
+data("mroz", package = "PoEdata")
+
+```
+
+
+# a.
+```{r}
+mroz <- subset(mroz, lfp == 1)
+mroz$MOTHERCOLL <- ifelse(mroz$mothereduc > 12, 1, 0)
+mroz$FATHERCOLL <- ifelse(mroz$fathereduc > 12, 1, 0)
+
+pct_mother <- mean(mroz$MOTHERCOLL) * 100
+pct_father <- mean(mroz$FATHERCOLL) * 100
+cat("(a) mother college education percentage:", pct_mother, "%\n")
+cat("(a) father college education percentage:", pct_father, "%\n\n")
+```
+
+
+# b.
+```{r}
+cor_matrix <- cor(mroz[, c("educ", "MOTHERCOLL", "FATHERCOLL")], use="complete.obs")
+print(cor_matrix)
+cat("\n")
+```
+The magnitudes are crucial because they confirm $Cov(Z, X) \neq 0$. Correlations of 0.359 and 0.398 are sufficiently large, indicating that these instruments are not weak.
+
+Dummy variables are often better instruments because they capture the Threshold Effect. Crossing the 12-year mark into college represents a discrete, structural shift in a family's socio-economic status and intellectual environment. This non-linear impact on a child's educational prospects is captured more effectively by a dummy variable than by a continuous linear measure of schooling.
+
+
+# c.IV Estimation (MOTHERCOLL)
+```{r}
+df <- subset(mroz, wage > 0)
+df$lwage <- log(df$wage)
+df$expersq <- df$exper^2
+
+iv_c <- ivreg(lwage ~ educ + exper + expersq | MOTHERCOLL + exper + expersq, data = df, na.action = na.exclude)
+ci_c <- confint(iv_c, "educ", level = 0.95)
+cat("95% CI for educ:", ci_c[1], "to", ci_c[2], "\n\n")
+```
+
+
+# d.First-Stage F-test (MOTHERCOLL)
+```{r}
+fs_d <- lm(educ ~ MOTHERCOLL + exper + expersq, data = df)
+f_test_d <- linearHypothesis(fs_d, "MOTHERCOLL = 0")
+print(f_test_d)
+cat("\n")
+```
+MOTHERCOLL is a strong instrument,with p-value that is small. It is highly relevant and effectively predicts the endogenous variable (educ), meaning we do not suffer from the severe biases associated with weak instruments in this specification.
+
+
+# e.IV Estimation (Both Parents)
+```{r}
+iv_e <- ivreg(lwage ~ educ + exper + expersq | MOTHERCOLL + FATHERCOLL + exper + expersq, data = df)
+ci_e <- confint(iv_e, "educ", level = 0.95)
+cat("95% CI for educ:", ci_e[1], "to", ci_e[2], "\n\n")
+```
+Compared to the interval in part (c), this new interval is visibly narrower.
+By adding a second valid instrument (FATHERCOLL), we provided the model with more exogenous information. This increased the efficiency of the 2SLS estimator.
+
+
+# f. First-Stage Joint F-test
+```{r}
+fs_f <- lm(educ ~ MOTHERCOLL + FATHERCOLL + exper + expersq, data = df)
+f_test_f <- linearHypothesis(fs_f, c("MOTHERCOLL = 0", "FATHERCOLL = 0"))
+print(f_test_f)
+cat("\n")
+```
+Since p-value is really small, there's sufficient evidence to reject the null hypothesis and conclude that these instruments, when used together, are adequately strong. There is no concern regarding weak instrument bias in this model.
+
+# g.Sargan Test
+```{r}
+summary_iv_e <- summary(iv_e, diagnostics = TRUE)
+print(summary_iv_e$diagnostics)
+```
+$H_0$：All instruments are valid (they are uncorrelated with the structural error term).
+Since the p-value (0.626) is greater than 0.05, we fail to reject the null hypothesis. there's sufficient evidence to conclude that the surplus instrument is statistically valid and correctly excluded from the main wage equation. So,the instruments are valid and exogenous.
+
+
+# 10.20
+
+```{r}
+library(readxl)
+capm5 <- read_excel("C:/finance ecomatrics/data/capm5.xlsx")
+View(capm5)
+```
+
+
+# a.OLS Estimation
+```{r}
+capm5$y_msft <- capm5$msft - capm5$riskfree  # Security excess return
+capm5$x_mkt <- capm5$mkt - capm5$riskfree    # Market excess return
+ols_model <- lm(y_msft ~ x_mkt, data = capm5)
+summary(ols_model)
+```
+In the CAPM framework, the $\beta$ coefficient measures the sensitivity of a security's return to the movements of the market portfolio.
+
+Since $\beta = 1.2018$ is greater than 1, Microsoft's stock is more volatile than the market average. Therefore, Microsoft would be classified as risky relative to the market portfolio during this specific period.
+
+# b.First-Stage (RANK)
+```{r}
+capm5$RANK <- rank(capm5$x_mkt)
+first_stage_b <- lm(x_mkt ~ RANK, data = capm5)
+summary(first_stage_b)
+```
+IV1-IV3 Conditions: Suggesting RANK as an instrumental variable is theoretically sound. In the presence of measurement error, the ordinal ranking of a variable is often robust against random noise. Therefore, RANK is highly correlated with the true, unobserved market return (satisfying the relevance condition IV1) and is likely uncorrelated with the measurement error component of the random error term (satisfying the exogeneity condition IV2).
+The regression output confirms that the coefficient of RANK is highly significant (p-value < 2e-16). This indicates a strong positive linear relationship between the rank and the measured market return (x_mkt).
+The first-stage regression yields an exceptionally high $R^2$ of 0.9126, meaning RANK explains 91.26% of the variation in the market return and the F-statistic is high.Consequently, we can definitively conclude that RANK is a very strong IV.
+
+# c.Endogeneity Test (using RANK residuals)
+```{r}
+capm5$v_hat_b <- resid(first_stage_b)
+hausman_c <- lm(y_msft ~ x_mkt + v_hat_b, data = capm5)
+summary(hausman_c)
+```
+ In this augmented regression, we test the significance of the first-stage residual, $\hat{v}$ (v_hat_b). $H_0$ :the market return is strictly exogenous.
+The output shows that the p-value for v_hat_b is 0.0428. Since $0.0428 > 0.01$, we fail to reject the null hypothesis.
+At the 1% significance level, we conclude that the market return is exogenous. There is not enough statistical evidence at this strict level to confirm the presence of endogeneity or severe measurement error.
+
+# d.IV/2SLS Estimation (RANK)
+```{r}
+iv_d <- ivreg(y_msft ~ x_mkt | RANK, data = capm5)
+summary(iv_d)
+```
+Using RANK as an instrumental variable, the IV/2SLS estimate for the market $\beta$ (x_mkt coefficient) is 1.2783. This is larger than the OLS estimate of 1.2018 obtained in part (a).
+It perfectly agrees with theoretical expectations. In econometrics, when an explanatory variable (like market return) is measured with random error, it causes attenuation bias (a bias toward zero) in the OLS estimator, effectively understating the true systemic risk.
+By employing a valid instrument to correct for this measurement error, we strip away the bias. Consequently, the corrected IV estimate bounces back to its true magnitude, resulting in a coefficient that is larger than the downward-biased OLS estimate.
+
+
+# e.First-Stage (RANK + POS)
+```{r}
+capm5$POS <- ifelse(capm5$x_mkt > 0, 1, 0)
+first_stage_e <- lm(x_mkt ~ RANK + POS, data = capm5)
+summary(first_stage_e)
+linearHypothesis(first_stage_e, c("RANK=0", "POS=0"))
+```
+The Multiple $R^2$ for this expanded first-stage model is 0.9149. This indicates that the combination of RANK and POS explains 91.49% of the variance in the endogenous variable (market return).
+
+The linear hypothesis test evaluates the joint null hypothesis that both instrumental variables have coefficients of zero ($H_0: \text{RANK} = 0, \text{POS} = 0$). The resulting joint F-statistic is 951.26 with a p-value practically equal to zero. Thus, we strongly reject the null hypothesis. RANK and POS constitute an adequately strong set of instrumental variables.
+
+
+# f. Endogeneity Test (using RANK & POS residuals
+```{r}
+capm5$v_hat_e <- resid(first_stage_e)
+hausman_f <- lm(y_msft ~ x_mkt + v_hat_e, data = capm5)
+summary(hausman_f)
+```
+Hausman test using the residuals (v_hat_e) obtained from the first-stage regression in part (e). $H_0$:the market return is strictly exogenous.
+The output provides a p-value of 0.0287 for v_hat_e. Since $0.0287 > 0.01$, we fail to reject the null hypothesis.
+At the 1% significance level, we conclude that the market return is exogenous. There is insufficient evidence to conclude that measurement error is causing severe endogeneity.
+
+# g. IV/2SLS Estimation (RANK + POS)
+```{r}
+iv_g <- ivreg(y_msft ~ x_mkt | RANK + POS, data = capm5)
+summary(iv_g)
+```
+Using both RANK and POS as instrumental variables, the IV/2SLS estimate for the market $\beta$ is 1.2831. This is explicitly larger than the OLS estimate of 1.2018 obtained in part (a).
+It perfectly agrees with our expectations. Measurement error in an explanatory variable causes attenuation bias (a bias toward zero) in OLS estimation, which underestimates the true risk. By using valid instrumental variables to correct for this endogeneity, we remove the downward bias. Consequently, the corrected IV estimate is larger than the biased OLS estimate.
+
+# h. Sargan Test
+```{r}
+capm5$iv_resid <- resid(iv_g)
+sargan_reg <- lm(iv_resid ~ RANK + POS, data = capm5)
+#  N * R^2
+nR2 <- nobs(sargan_reg) * summary(sargan_reg)$r.squared
+# 2 IV & 1 variable , df = 2 - 1 = 1
+p_val_sargan <- 1 - pchisq(nR2, df = 1)
+cat("Test Statistic (N*R2):", nR2, "\n")
+cat("p-value:", p_val_sargan, "\n")
+```
+$H_0$:all instrumental variables are exogenous and valid (uncorrelated with the structural error term).
+Since the calculated p-value of 0.4549 is much greater than 0.05, we fail to reject the null hypothesis.
+We can conclude that the surplus instrument is statistically valid and that our set of instrumental variables is strictly exogenous.
