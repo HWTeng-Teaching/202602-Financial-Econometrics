@@ -1,0 +1,213 @@
+---
+10.18
+---
+```{r setup, include=FALSE}
+library(AER)
+library(car)
+
+mroz_work <- subset(mroz, lfp == 1)
+```
+
+### Part a
+建立兩個新的虛擬變數 `MOTHERCOLL` 與 `FATHERCOLL`，並計算樣本中父母有大學學歷的比例。
+
+```{r part_a}
+# 建立虛擬變數
+mroz_work$MOTHERCOLL <- ifelse(mroz_work$mothereduc > 12, 1, 0)
+mroz_work$FATHERCOLL <- ifelse(mroz_work$fathereduc > 12, 1, 0)
+
+# 計算母親有大學學歷的比例
+pct_mother_coll <- mean(mroz_work$MOTHERCOLL) * 100
+cat("母親有受過大學教育的比例為：", round(pct_mother_coll, 2), "%\n")
+
+# 計算父親有大學學歷的比例
+pct_father_coll <- mean(mroz_work$FATHERCOLL) * 100
+cat("父親有受過大學教育的比例為：", round(pct_father_coll, 2), "%\n")
+
+```
+
+### Part b
+找出 `educ`, `MOTHERCOLL`, 和 `FATHERCOLL` 之間的相關係數，並說明為什麼虛擬變數可能是更好的工具變數。
+```{r part_b}
+# 計算相關係數矩陣
+cor_matrix <- cor(mroz_work[, c("educ", "MOTHERCOLL", "FATHERCOLL")])
+print(cor_matrix)
+```
+### Part c
+使用 `MOTHERCOLL` 作為工具變數，估計 Example 10.5 的工資方程式，並找出 `educ` 係數的 95% 信賴區間。
+```{r part_c}
+# 使用 AER 套件的 ivreg 進行 2SLS 估計
+# 第一階段的外部工具變數為 MOTHERCOLL，其餘為外生控制變數
+iv_mod_c <- ivreg(log(wage) ~ educ + exper + I(exper^2) | MOTHERCOLL + exper + I(exper^2), data = mroz_work)
+summary(iv_mod_c)
+
+# 計算 95% 信賴區間
+confint_c <- confint(iv_mod_c, "educ", level = 0.95)
+print(confint_c)
+```
+
+### Part d
+針對 Part (c) 估計第一階段 (First-stage) 方程式，並計算 F 檢定統計量，評估 `MOTHERCOLL` 是否為強工具變數。
+```{r part_d}
+# 第一階段回歸：將內生變數 educ 對所有外生變數及工具變數進行回歸
+first_stage_d <- lm(educ ~ MOTHERCOLL + exper + I(exper^2), data = mroz_work)
+summary(first_stage_d)
+
+# 進行 F-test (檢定 H0: MOTHERCOLL = 0)
+f_test_d <- linearHypothesis(first_stage_d, "MOTHERCOLL = 0")
+print(f_test_d)
+```
+
+### Part e
+同時使用 `MOTHERCOLL` 和 `FATHERCOLL` 作為工具變數重新估計方程式，並比較信賴區間的寬度。
+```{r part_e}
+# 使用兩個工具變數進行 2SLS 估計
+iv_mod_e <- ivreg(log(wage) ~ educ + exper + I(exper^2) | MOTHERCOLL + FATHERCOLL + exper + I(exper^2), data = mroz_work)
+summary(iv_mod_e)
+
+# 計算 95% 信賴區間
+confint_e <- confint(iv_mod_e, "educ", level = 0.95)
+print(confint_e)
+
+# 比較寬度
+width_c <- confint_c[2] - confint_c[1]
+width_e <- confint_e[2] - confint_e[1]
+```
+
+### Part f
+針對 Part (e) 估計第一階段方程式，並測試 `MOTHERCOLL` 和 `FATHERCOLL` 的聯合顯著性。
+```{r part_f}
+# 第一階段回歸：加入兩個工具變數
+first_stage_f <- lm(educ ~ MOTHERCOLL + FATHERCOLL + exper + I(exper^2), data = mroz_work)
+summary(first_stage_f)
+
+# 進行 F-test (檢定 H0: MOTHERCOLL = 0 且 FATHERCOLL = 0)
+f_test_f <- linearHypothesis(first_stage_f, c("MOTHERCOLL = 0", "FATHERCOLL = 0"))
+print(f_test_f)
+```
+
+### Part g
+針對 Part (e) 的工具變數估計進行過度識別檢定 (Overidentifying restrictions test / Sargan test)。
+```{r part_g}
+# 使用 summary() 搭配 diagnostics = TRUE 會自動輸出 Sargan test (過度識別檢定)
+summary(iv_mod_e, diagnostics = TRUE)
+```
+
+---
+10.20
+---
+---
+title: "Exercise 10.20: CAPM and Instrumental Variables"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+capm5$msft_ex <- capm5$msft - capm5$riskfree
+capm5$mkt_ex <- capm5$mkt - capm5$riskfree
+```
+
+### Part a
+使用 OLS 估計 CAPM 模型，並根據 $\beta$ 值判斷微軟股票相對市場的風險。
+
+```{r part_a}
+# OLS 估計
+ols_model <- lm(msft_ex ~ mkt_ex, data = capm5)
+summary(ols_model)
+
+# 提取 Beta 係數
+beta_ols <- coef(ols_model)["mkt_ex"]
+cat("OLS 估計的 Beta 值為:", beta_ols, "\n")
+```
+
+### Part b
+建立工具變數 `RANK`（市場超額報酬的排名），並執行第一階段回歸。
+
+```{r part_b}
+# 建立 RANK 變數 (依據市場超額報酬由小到大排序)
+capm5$RANK <- rank(capm5$mkt_ex)
+
+# 第一階段回歸
+first_stage_b <- lm(mkt_ex ~ RANK, data = capm5)
+summary(first_stage_b)
+```
+
+### Part c
+進行 Hausman 檢定（透過迴歸殘差），檢驗市場報酬是否為外生。
+
+```{r part_c}
+# 取得第一階段殘差 v_hat
+capm5$vhat_b <- resid(first_stage_b)
+
+# 將殘差加入原 CAPM 模型進行 OLS 估計
+aug_model_c <- lm(msft_ex ~ mkt_ex + vhat_b, data = capm5)
+summary(aug_model_c)
+```
+
+### Part d
+使用 `RANK` 作為工具變數進行 2SLS 估計，並與 Part (a) 比較。
+
+```{r part_d}
+# IV/2SLS 估計
+iv_model_d <- ivreg(msft_ex ~ mkt_ex | RANK, data = capm5)
+summary(iv_model_d)
+```
+
+### Part e
+建立虛擬變數 `POS`，並使用 `RANK` 與 `POS` 進行第一階段回歸與聯合檢定。
+
+```{r part_e}
+# 建立 POS 變數 (當 mkt_ex > 0 時為 1，否則為 0)
+capm5$POS <- ifelse(capm5$mkt_ex > 0, 1, 0)
+
+# 第一階段回歸 (兩個工具變數)
+first_stage_e <- lm(mkt_ex ~ RANK + POS, data = capm5)
+summary(first_stage_e)
+
+# 聯合顯著性 F 檢定
+f_test_e <- linearHypothesis(first_stage_e, c("RANK = 0", "POS = 0"))
+print(f_test_e)
+```
+
+### Part f
+使用 Part (e) 的殘差再次進行 Hausman 內生性檢定。
+
+```{r part_f}
+# 取得新的第一階段殘差
+capm5$vhat_e <- resid(first_stage_e)
+
+# 將殘差加入原 CAPM 模型進行 OLS 估計
+aug_model_f <- lm(msft_ex ~ mkt_ex + vhat_e, data = capm5)
+summary(aug_model_f)
+```
+
+### Part g
+使用 `RANK` 和 `POS` 作為工具變數進行 2SLS 估計。
+
+```{r part_g}
+# 使用兩個 IV 進行 2SLS 估計
+iv_model_g <- ivreg(msft_ex ~ mkt_ex | RANK + POS, data = capm5)
+summary(iv_model_g)
+```
+
+### Part h
+手動執行 Sargan 檢定 (過度識別檢定)，檢驗多餘工具變數的有效性。
+
+```{r part_h}
+# 1. 取得 Part (g) 2SLS 模型的殘差
+capm5$ehat_iv <- resid(iv_model_g)
+
+# 2. 將 2SLS 殘差對所有工具變數 (RANK, POS) 進行迴歸
+sargan_reg <- lm(ehat_iv ~ RANK + POS, data = capm5)
+
+# 3. 計算 LM 統計量：N * R^2
+r2_sargan <- summary(sargan_reg)$r.squared
+n <- nrow(capm5)
+sargan_stat <- n * r2_sargan
+
+# 4. 計算 p-value
+# 自由度 df = 總工具變數數量(2) - 內生解釋變數數量(1) = 1
+p_val_sargan <- 1 - pchisq(sargan_stat, df = 1)
+
+cat("Sargan 檢定統計量 (N*R^2):", sargan_stat, "\n")
+cat("Sargan 檢定 p-value:", p_val_sargan, "\n")
+```
