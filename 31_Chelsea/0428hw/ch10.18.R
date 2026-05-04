@@ -1,0 +1,41 @@
+data('mroz',package='POE5Rdata')
+names(mroz)
+head(mroz)
+mroz
+#(a)
+data_lafo<-subset(mroz,lfp==1)
+data_lafo$MOTHERCOLL<-ifelse(data_lafo$mothereduc>12,1,0)
+data_lafo$FATHERCOLL<-ifelse(data_lafo$fathereduc>12,1,0)
+names(mroz)
+num_mocol<-sum(data_lafo$MOTHERCOLL)
+percentage_mocol<-num_mocol/428
+num_facol<-sum(data_lafo$FATHERCOLL)
+percentage_facol<-num_facol/428
+cat('percentage of mother has college edu:',percentage_mocol)
+cat('percentage of father has college edu:',percentage_facol)
+#(b)
+cor(data_lafo[,c('educ','MOTHERCOLL','FATHERCOLL')])
+#(c)
+install.packages('AER')
+library(package='AER')
+morz.iv<-ivreg(log(wage)~educ+exper+I(exper^2)|exper+I(exper^2)+ MOTHERCOLL,data=data_lafo)
+summary(morz.iv)
+confint(morz.iv,level=0.95)
+#(d)
+install.packages('car')
+library(package='car')
+stage1<-lm(educ~MOTHERCOLL+exper+I(exper^2),data=data_lafo)
+summary(stage1)
+tvalue<-summary(stage1)$coefficients['MOTHERCOLL','t value']
+cat('ftest of mothercoll:',tvalue^2)
+linearHypothesis(stage1,'MOTHERCOLL=0')
+#(e)加入fathercoll估計wage
+morz.iv2<-ivreg(log(wage)~educ+exper+I(exper^2)|exper+I(exper^2)+ MOTHERCOLL+FATHERCOLL,data=data_lafo)
+summary(morz.iv2)
+confint(morz.iv2,level=0.95)
+#(f)1st stage中 看mother fathercoll是否顯著
+stage1mf<-lm(educ~MOTHERCOLL+FATHERCOLL+exper+I(exper^2),data=data_lafo)
+summary(stage1mf)
+linearHypothesis(stage1mf,c('MOTHERCOLL=0','FATHERCOLL=0'))
+#(g)validity of surplus instruments
+summary(morz.iv2,dianogstics=TRUE)
