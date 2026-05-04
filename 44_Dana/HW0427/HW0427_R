@@ -1,0 +1,127 @@
+#10.18
+
+install.packages("AER")
+library(AER)
+
+#a
+load("C:/Users/USER/Desktop/NYCU/SEM2_Spring2026/Econometrics/mroz.rda")
+married <-subset(mroz, lfp==1)
+
+married$mothercoll <- ifelse(married$mothereduc>12,1,0)
+married$fathercoll <- ifelse(married$fathereduc>12,1,0)
+
+mean(married$mothercoll)
+mean(married$fathercoll)
+
+
+#b
+cor(married[c("educ","mothercoll","fathercoll")])
+
+#c
+mom_iv <- ivreg(log(wage)~educ + exper + I(exper^2)|
+                  exper + I(exper^2)+ mothercoll, data=married)
+summary(mom_iv)
+
+confint(mom_iv,"educ", level=0.95)
+
+
+#d
+first_stage_d <- lm(educ~exper + I(exper^2)+ mothercoll, data=married)
+summary(first_stage_d)
+
+#H0: mothercoll=0
+linearHypothesis(first_stage_d,c("mothercoll=0"))
+
+#e
+momdad_iv <- ivreg(log(wage)~educ + exper + I(exper^2)|
+                  exper + I(exper^2)+ mothercoll + fathercoll, data=married)
+summary(momdad_iv)
+confint(momdad_iv,"educ", level=0.95)
+
+#f
+first_stage_f <- lm(educ~exper + I(exper^2)+ mothercoll + fathercoll, data=married)
+summary(first_stage_f)
+
+#H0: mothercoll=fathercoll=0
+linearHypothesis(first_stage_f,c("mothercoll=0", "fathercoll=0"))
+
+
+#g
+#H0: cov(z,e)=0
+summary(momdad_iv, diagnostics=TRUE)
+  
+
+#10.20
+load(url("https://www.principlesofeconometrics.com/poe5/data/rdata/capm5.rdata"))
+
+#a
+capm5$y_A<- capm5$msft-capm5$riskfree
+capm5$x_A <-capm5$mkt-capm5$riskfree
+mod_A <- lm(y_A~x_A,data=capm5)
+summary(mod_A)
+
+#b
+capm5$rank <- rank(capm5$x_A)
+rank_stage1 <- lm(x_A~rank, data=capm5)
+summary(rank_stage1)
+
+#c
+capm5$vhat_rank <-resid(rank_stage1)
+mod_C <- lm(y_A~x_A + vhat_rank,data=capm5)
+summary(mod_C)
+
+#d
+iv_rank <-ivreg(y_A~x_A|rank, data=capm5)
+iv_rank
+
+#e
+capm5$pos <- ifelse(capm5$x_A>0,1,0)
+stage1_E <-lm(x_A~rank + pos, data=capm5)
+summary(stage1_E)
+#Multiple R-squared:  0.9149
+
+#H0: rank=pos=0
+linearHypothesis(stage1_E,c("rank=0", "pos=0"))
+
+
+#f
+capm5$vhat_E <-resid(stage1_E)
+mod_F <- lm(y_A~x_A + vhat_E,data=capm5)
+summary(mod_F)
+
+
+#g
+iv_G <-ivreg(y_A~x_A|rank+pos, data=capm5)
+summary(iv_G)
+
+#h
+
+#H0: instruments are valid
+
+#alpha=5%
+vhat_G <- resid(iv_G)
+
+#regress IV residual on all instruments
+sargan_aux <-lm(vhat_G~rank + pos, data=capm5)
+summary(sargan_aux)
+
+#NR^2
+N <-nrow(capm5)
+R2_aux <-summary(sargan_aux)$r.squared
+
+sargan_stat <-N*R2_aux
+#0.5584634
+
+# P(Chi-square > 0.5585)
+
+#chi_squared test
+#df=L-B=1
+critical_value <-pchisq(0.95, df=1)
+#0.6702807
+
+if (sargan_stat > critical_value) {
+  cat("Reject H0: at least one of the IVs may be correlated with the error.")
+} else {
+  cat("Fail to reject H0: no evidence that the surplus IV is invalid.")
+}
+
