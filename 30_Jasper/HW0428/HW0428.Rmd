@@ -1,0 +1,139 @@
+10.18
+```{r}
+install.packages(c("AER"))
+
+library(AER)
+library(PoEdata) # 假設數據來自此套件
+data("mroz", package = "PoEdata")
+
+# 篩選參加勞動市場的樣本 (LFP = 1)
+mroz_working <- subset(mroz, lfp == 1)
+```
+```{r}
+head(mroz)
+```
+
+(a)
+```{r}
+mroz_working$MOTHERCOLL <- ifelse(mroz_working$mothereduc > 12, 1, 0)
+mroz_working$FATHERCOLL <- ifelse(mroz_working$fathereduc > 12, 1, 0)
+
+# 計算父母受過大學教育的百分比
+pct_mother <- mean(mroz_working$MOTHERCOLL) * 100
+pct_father <- mean(mroz_working$FATHERCOLL) * 100
+cat("母親大學教育比例:", pct_mother, "%\n")
+cat("父親大學教育比例:", pct_father, "%\n")
+```
+(b)
+```{r}
+cor_matrix <- cor(mroz_working[, c("educ", "MOTHERCOLL", "FATHERCOLL")])
+print("相關係數矩陣:")
+print(cor_matrix)
+```
+(c)
+```{r}
+iv_model_c <- ivreg(log(wage) ~ educ + exper + I(exper^2) | 
+                      MOTHERCOLL + exper + I(exper^2), data = mroz_working)
+
+summary(iv_model_c)
+confint(iv_model_c, "educ", level = 0.95)
+```
+(d)
+```{r}
+first_stage_d <- lm(educ ~ MOTHERCOLL + exper + I(exper^2), data = mroz_working)
+summary(first_stage_d)
+# F 檢定：MOTHERCOLL 是否為強工具變數
+linearHypothesis(first_stage_d, "MOTHERCOLL = 0")
+```
+(e)
+```{r}
+iv_model_e <- ivreg(log(wage) ~ educ + exper + I(exper^2) | 
+                      MOTHERCOLL + FATHERCOLL + exper + I(exper^2), data = mroz_working)
+
+summary(iv_model_e)
+confint(iv_model_e, "educ", level = 0.95)
+```
+(f)
+```{r}
+first_stage_f <- lm(educ ~ MOTHERCOLL + FATHERCOLL + exper + I(exper^2), data = mroz_working)
+summary(first_stage_f)
+linearHypothesis(first_stage_f, c("MOTHERCOLL = 0", "FATHERCOLL = 0"))
+```
+(g)
+```{r}
+summary(iv_model_e, diagnostics = TRUE)
+```
+10.20
+```{r}
+library(AER)      # 用於 ivreg
+library(PoEdata)  # 載入數據集
+load("C:/Users/jaspe/OneDrive/Desktop/R code/poe5rdata/capm5.rdata")
+head(capm5)    # 載入 Microsoft 相關數據
+
+# 計算溢酬 (Risk Premium)
+capm5$msft_premium <- capm5$msft - capm5$riskfree
+capm5$mkt_premium <- capm5$mkt - capm5$riskfree
+```
+(a)
+```{r}
+model_ols <- lm(msft_premium ~ mkt_premium, data = capm5)
+summary(model_ols)
+```
+(b)
+```{r}
+capm5$RANK <- rank(capm5$mkt_premium)
+
+# 第一階段回歸：將內生變數對工具變數回歸
+first_stage_b <- lm(mkt_premium ~ RANK, data = capm5)
+summary(first_stage_b)
+```
+(c)
+```{r}
+capm5$v_hat <- resid(first_stage_b)
+model_augmented <- lm(msft_premium ~ mkt_premium + v_hat, data = capm5)
+summary(model_augmented)
+```
+(d)
+```{r}
+model_iv_d <- ivreg(msft_premium ~ mkt_premium | RANK, data = capm5)
+summary(model_iv_d)
+```
+(e)
+```{r}
+capm5$POS <- ifelse(capm5$mkt_premium > 0, 1, 0)
+first_stage_e <- lm(mkt_premium ~ RANK + POS, data = capm5)
+summary(first_stage_e)
+# 講解：檢定 RANK 與 POS 的聯合顯著性 (F-test)。
+linearHypothesis(first_stage_e, c("RANK=0", "POS=0"))
+```
+(f)
+```{r}
+capm5$v_hat_e <- resid(first_stage_e)
+model_hausman <- lm(msft_premium ~ mkt_premium + v_hat_e, data = capm5)
+summary(model_hausman)
+```
+(g)
+```{r}
+model_iv_g <- ivreg(msft_premium ~ mkt_premium | RANK + POS, data = capm5)
+summary(model_iv_g)
+```
+(h)
+```{r}
+# 1. 取得 IV 殘差
+capm5$iv_res_g <- residuals(model_iv_g)
+
+# 2. 進行殘差對工具變數的迴歸
+sargan_reg <- lm(iv_res_g ~ RANK + POS, data = capm5)
+
+# 3. 計算 LM 統計量 (n * R^2)
+n <- nrow(capm5)
+r_squared <- summary(sargan_reg)$r.squared
+lm_stat <- n * r_squared
+
+# 4. 計算 P 值 (自由度 df = 工具變數個數 - 內生變數個數 = 2 - 1 = 1)
+p_value <- 1 - pchisq(lm_stat, df = 1)
+
+cat("LM Statistic:", lm_stat, "\n")
+cat("P-value:", p_value, "\n")
+```
+
