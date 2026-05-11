@@ -1,0 +1,207 @@
+---
+title: "HW0505"
+output: html_document
+date: "2026-05-11"
+---
+
+# 11.24
+```{r}
+library(AER) 
+library(car)
+library(PoEdata)
+data("fultonfish", package = "PoEdata")
+```
+
+# a.
+```{r}
+rf_price <- lm(lprice ~ mon + tue + wed + thu + stormy + mixed, data = fultonfish)
+cat("--- (a) Reduced-form for ln(PRICE) ---\n")
+summary(rf_price)
+
+cat("\n--- (a) STORMY & MIXED joint F statistic ---\n")
+linearHypothesis(rf_price, c("stormy=0", "mixed=0"))
+```
+the coefficient for mixed is 0.23688 with a corresponding p-value of 0.00321. Because $0.00321 < 0.05$ (and even $< 0.01$), we reject the null hypothesis. This indicates that mixed weather conditions have a statistically significant positive effect on the price of fish.
+
+According to the "Linear hypothesis test" in the second screenshot, we test the joint null hypothesis $H_0: \text{stormy} = 0 \text{ and } \text{mixed} = 0$.
+The result yields a joint F-statistic of 16.14 with a near-zero p-value (7.857e-07). Therefore, we strongly reject the null hypothesis, concluding that the two weather variables are jointly highly significant in explaining the variations in fish prices.
+
+The calculated F-statistic is 16.14, which clearly exceeds the threshold of 10. This confirms that weather conditions strongly shift the supply curve and induce sufficient variation in the equilibrium price. Consequently, STORMY and MIXED serve as strong instruments for estimating the demand equation in the next step, ensuring that our 2SLS estimates will not suffer from weak-instrument bias.
+
+# b.
+```{r}
+demand_iv <- ivreg(lquan ~ lprice + mon + tue + wed + thu | 
+                   mon + tue + wed + thu + stormy + mixed, data = fultonfish)
+summary(demand_iv)
+```
+New Standard Error (Two IVs): The standard error for lprice is 0.3534
+Old Standard Error (Single IV, Table 11.5): The standard error for lprice was 0.4286
+the standard error has decreased. By adding an additional valid instrument (MIXED), we transition from an exactly identified model to an overidentified model. This incorporates more exogenous information regarding supply shifts, which improves the asymptotic efficiency of the 2SLS estimator, leading to smaller standard errors and a more precise estimate of the price elasticity.
+
+# c.
+```{r}
+summary(demand_iv, diagnostics = TRUE)
+```
+$H_0$: The overidentifying restrictions are valid. (i.e., all instruments are strictly exogenous and uncorrelated with the structural error term of the demand equation).
+The output shows a p-value of 0.380 for the Sargan test. Since 0.380 is much greater than 0.05, we fail to reject the null hypothesis.
+It confirms that our instrumental variables are statistically valid. It provides strong statistical evidence that weather conditions belong exclusively in the supply equation and are correctly excluded from the demand equation, ensuring our 2SLS estimates are unbiased.
+
+
+
+# d.
+```{r}
+linearHypothesis(rf_price, c("mon=0", "tue=0", "wed=0", "thu=0"))
+```
+$H_0$: the coefficients for all four days are zero
+Since the p-value is 0.6437, which is substantially greater than 0.05, we fail to reject the null hypothesis. This indicates that the day-of-the-week variables are not statistically significant in explaining the variations in the market price.
+Our calculated F-statistic is only 0.6279. This confirms that the day-of-the-week variables are extremely weak instruments for price. Estimating the supply equation with such weak instruments would lead to severe finite-sample bias and unreliable standard errors. Therefore, we cannot proceed with 2SLS estimation of the supply equation with any confidence.
+
+
+# 11.28
+```{r}
+data("truffles", package = "PoEdata")
+```
+
+
+# a.
+
+ $Q = \alpha_1 + \alpha_2 P + \alpha_3 PS + \alpha_4 DI + e_d$
+
+$$P = \frac{1}{\alpha_2}Q - \frac{\alpha_1}{\alpha_2} - \frac{\alpha_3}{\alpha_2}PS - \frac{\alpha_4}{\alpha_2}DI - \frac{e_d}{\alpha_2}$$
+$P = \gamma_1 + \gamma_2 Q + \gamma_3 PS + \gamma_4 DI + u_d$
+
+Demand: 因為符合需求法則，原 $\alpha_2 < 0$，所以新的斜率 $\gamma_2 < 0$。松露替代品價格 ($PS$) 上升或所得 ($DI$) 上升都會讓需求曲線向右/向上平移，因為原 $\alpha_3 > 0, \alpha_4 > 0$，加上 $-\frac{1}{\alpha_2}$ 是正數，所以預期 $\gamma_3 > 0$ 且 $\gamma_4 > 0$
+
+ $Q = \beta_1 + \beta_2 P + \beta_3 PF + e_s$
+$$P = \frac{1}{\beta_2}Q - \frac{\beta_1}{\beta_2} - \frac{\beta_3}{\beta_2}PF - \frac{e_s}{\beta_2}$$
+$P = \delta_1 + \delta_2 Q + \delta_3 PF + u_s$
+
+因為符合供給法則，原 $\beta_2 > 0$，所以新的斜率 $\delta_2 > 0$。生產要素價格 ($PF$) 上升會讓供給減少（曲線向左/向上平移），原 $\beta_3 < 0$，所以預期 $\delta_3 > 0$
+
+
+
+# b.
+```{r}
+demand_2sls <- ivreg(p ~ q + ps + di | ps + di + pf, data = truffles)
+cat("--- (b) 2SLS Demand ---\n")
+summary(demand_2sls)
+
+# 供給方程式的 IV：PS, DI (來自需求式被排除的變數)
+supply_2sls <- ivreg(p ~ q + pf | pf + ps + di, data = truffles)
+cat("\n--- (b) 2SLS Supply ---\n")
+summary(supply_2sls)
+```
+The sign for $Q$ is negative, which is consistent with the Law of Demand (a downward-sloping inverse demand curve).
+The sign for $PS$ (price of substitute) is positive. A higher price for a substitute increases the demand for truffles, shifting the inverse demand curve upward.
+The sign for $DI$ (disposable income) is positive, indicating that truffles are a normal good; higher income shifts demand upward.
+The coefficient for $Q$,$PS$ and $DI$ are significant at the 5% level ($p < 0.05$). 
+
+The sign for $Q$ is positive, which adheres to the Law of Supply (an upward-sloping inverse supply curve).
+The sign for $PF$ (price of factor/input) is positive. An increase in production costs shifts the supply curve to the left (or upward), requiring a higher price to supply the same quantity.
+Both $Q$ and $PF$ have p-values practically equal to zero ($p < 0.001$), indicating extremely strong statistical significance.
+
+
+# c.
+```{r}
+gamma_2 <- coef(demand_2sls)["q"]
+mean_P <- mean(truffles$p)
+mean_Q <- mean(truffles$q)
+# elasticity: (1 / slope) * (mean_p / mean_q)
+elasticity <- (1 / gamma_2) * (mean_P / mean_Q)
+cat("\n--- (c) price elasticity at mean ---\n")
+print(elasticity)
+```
+
+
+
+
+# d.
+```{r}
+DI_val <- 3.5
+PF_val <- 23
+PS_val <- 22
+
+coef_d <- coef(demand_2sls)
+#  Intercept_D = \gamma_1 + \gamma_3*PS + \gamma_4*DI
+int_d <- coef_d["(Intercept)"] + coef_d["ps"] * PS_val + coef_d["di"] * DI_val
+slope_d <- coef_d["q"]
+
+# supply_2sls
+coef_s <- coef(supply_2sls)
+#  Intercept_S = \delta_1 + \delta_3*PF
+int_s <- coef_s["(Intercept)"] + coef_s["pf"] * PF_val
+slope_s <- coef_s["q"]
+
+Q_range <- seq(10, 25, length.out = 100)
+# 計算對應的 P
+P_demand <- int_d + slope_d * Q_range
+P_supply <- int_s + slope_s * Q_range
+
+plot(Q_range, P_demand, type = "l", col = "blue", lwd = 2,
+     xlab = "Quantity (Q)", ylab = "Price (P)",
+     main = "Truffle Market Supply and Demand (2SLS Estimates)",
+     ylim = range(c(P_demand, P_supply)))
+lines(Q_range, P_supply, col = "red", lwd = 2)
+legend("topright", legend = c("Demand", "Supply"), col = c("blue", "red"), lwd = 2)
+
+
+Q_star_struct <- (int_d - int_s) / (slope_s - slope_d)
+P_star_struct <- int_d + slope_d * Q_star_struct
+#Q_star_struct <- round(Q_star_struct, 2)
+#P_star_struct <- round(P_star_struct, 2)
+
+cat("--- (e) 2SLS equalibrium ---\n")
+cat("均衡數量 Q* =", Q_star_struct, "\n")
+cat("均衡價格 P* =", P_star_struct, "\n\n")
+
+points(Q_star_struct, P_star_struct, pch = 19, col = "black", cex = 1.5)
+text(Q_star_struct, P_star_struct,
+     labels = paste0("Eq (", round(Q_star_struct, 2), ", ", round(P_star_struct, 2), ")"),
+     pos = 4)
+
+```
+
+
+
+# e.
+```{r}
+
+# 2. 縮減式 (Reduced-form) 的預測均衡解 (使用 Table 11.2a, 11.2b 的係數)
+Q_star_rf <- 7.8951 + 0.6564 * PS_val + 2.1672 * DI_val - 0.5070 * PF_val
+P_star_rf <- -32.5124 + 1.7081 * PS_val + 7.6025 * DI_val + 1.3539 * PF_val
+#Q_star_rf <- round(Q_star_rf, 2)
+#P_star_rf <- round(P_star_rf, 2)
+
+
+cat("--- (e) Reduced-form (Table 11.2) 預測的均衡點 ---\n")
+cat("預測數量 Q* =", Q_star_rf, "\n")
+cat("預測價格 P* =", P_star_rf, "\n\n")
+
+diff_Q_exact <- round(abs(Q_star_struct - Q_star_rf), 2)
+diff_P_exact <- round(abs(P_star_struct - P_star_rf), 2)
+cat("--- comparison ---\n")
+cat("difference Q:", diff_Q_exact, "\n")
+cat("difference P:", diff_P_exact, "\n")
+cat("結論: same result (差異極小，僅為小數點進位誤差)\n")
+```
+
+
+
+# f.
+```{r}
+demand_ols <- lm(p ~ q + ps + di, data = truffles)
+supply_ols <- lm(p ~ q + pf, data = truffles)
+cat("\n--- (f) OLS demand ---\n")
+summary(demand_ols)
+cat("\n--- (f) OLS supply ---\n")
+summary(supply_ols)
+```
+The coefficient for $Q$ is positive (0.1512). This directly violates the Law of Demand, implying an upward-sloping demand curve, which makes no economic sense here. 
+The exogenous variables $PS$ and $DI$ have correct positive signs.
+ The coefficient for $Q$ is not significantly different from zero (p-value = 0.7642). OLS fails to find a meaningful relationship between $Q$ and $P$ in the demand equation.
+
+Both $Q$ and $PF$ have positive signs, which is consistent with the Law of Supply and the effect of rising input costs.
+Both p-values are close to zero, indicating extremely strong statistical significance.
+
+Price ($P$) and quantity ($Q$) are jointly determined in the market equilibrium, $Q$ is an endogenous variable (it is correlated with the error term).
+Applying OLS directly to a structural equation in a simultaneous system suffers from severe simultaneity bias. The OLS estimator captures a confounded mixture of both supply and demand shifts, resulting in inconsistent and heavily biased estimates. The 2SLS method in part (b) corrects this endogeneity using instrumental variables, successfully identifying the true underlying structural curves.
