@@ -1,0 +1,129 @@
+```{r}
+library(AER)
+library(car)
+library(ggplot2)
+```
+
+```{r}
+# 11.24a
+# 估計 lprice 的簡化式迴歸模型
+# 解釋變數包含所有的外生變數 (星期虛擬變數) 以及工具變數 (stormy, mixed)
+eq_red <- lm(lprice ~ mon + tue + wed + thu + stormy + mixed, data = fultonfish)
+
+# 檢視迴歸結果，觀察 mixed 的 p-value
+summary(eq_red)
+
+# 檢定 stormy 和 mixed 的聯合顯著性 (F-test)
+linearHypothesis(eq_red, c("stormy = 0", "mixed = 0"))
+```
+
+```{r}
+# 11.24b
+# 使用 AER::ivreg 執行 2SLS
+eq_demand_iv <- ivreg(lquan ~ lprice + mon + tue + wed + thu | 
+                              stormy + mixed + mon + tue + wed + thu, 
+                      data = fultonfish)
+
+summary(eq_demand_iv)
+```
+
+```{r}
+# 11.24c
+summary(eq_demand_iv, diagnostics = TRUE)
+```
+```{r}
+# 11.24d
+linearHypothesis(eq_red, c("mon = 0", "tue = 0", "wed = 0", "thu = 0"))
+```
+```{r}
+# 11.28b
+# 1. 估計反需求方程式 (Inverse Demand)
+# 公式：應變數 ~ 內生變數 + 外生變數 | 工具變數 + 外生變數
+inv_demand_2sls <- ivreg(p ~ q + ps + di | pf + ps + di, data = truffles)
+summary(inv_demand_2sls)
+
+# 2. 估計反供給方程式 (Inverse Supply)
+inv_supply_2sls <- ivreg(p ~ q + pf | ps + di + pf, data = truffles)
+summary(inv_supply_2sls)
+```
+```{r}
+# 11.28c
+# 計算樣本平均值
+mean_p <- mean(truffles$p)
+mean_q <- mean(truffles$q)
+
+# 提取 Q 的係數 (gamma_2)
+gamma2 <- coef(inv_demand_2sls)["q"]
+
+# 計算彈性
+elasticity <- (1 / gamma2) * (mean_p / mean_q)
+cat("在平均值處的需求價格彈性為:", round(elasticity, 4), "\n")
+```
+```{r}
+# 11.28d
+# 設定外生變數給定值
+DI_star <- 3.5
+PF_star <- 23
+PS_star <- 22
+
+# 計算需求曲線的截距與斜率
+# P = (gamma1 + gamma3*PS + gamma4*DI) + gamma2*Q
+int_D <- coef(inv_demand_2sls)["(Intercept)"] + 
+         coef(inv_demand_2sls)["ps"] * PS_star + 
+         coef(inv_demand_2sls)["di"] * DI_star
+slope_D <- coef(inv_demand_2sls)["q"]
+
+# 計算供給曲線的截距與斜率
+# P = (delta1 + delta3*PF) + delta2*Q
+int_S <- coef(inv_supply_2sls)["(Intercept)"] + 
+         coef(inv_supply_2sls)["pf"] * PF_star
+slope_S <- coef(inv_supply_2sls)["q"]
+
+# 使用 ggplot2 繪圖
+ggplot(data.frame(Q = c(0, 30)), aes(x = Q)) +
+  stat_function(fun = function(q) int_D + slope_D * q, aes(color = "Demand"), linewidth = 1) +
+  stat_function(fun = function(q) int_S + slope_S * q, aes(color = "Supply"), linewidth = 1) +
+  labs(title = "Truffle Market: Supply and Demand",
+       x = "Quantity (Q)",
+       y = "Price (P)",
+       color = "Curve") +
+  theme_minimal() +
+  scale_color_manual(values = c("Demand" = "blue", "Supply" = "red"))
+```
+```{r}
+# 11.28e
+# 1. 聯立求解 (d) 中的兩條直線
+# int_D + slope_D * Q = int_S + slope_S * Q
+Q_eq <- (int_D - int_S) / (slope_S - slope_D)
+P_eq <- int_S + slope_S * Q_eq
+
+cat("從結構式(Structural form)推導的均衡數量 Q* =", round(Q_eq, 4), "\n")
+cat("從結構式(Structural form)推導的均衡價格 P* =", round(P_eq, 4), "\n\n")
+
+# 2. 估計簡化式 (Reduced-form equations) 並預測
+# 簡化式是將 P 和 Q 分別對「所有」外生變數做 OLS 迴歸
+red_q <- lm(q ~ ps + di + pf, data = truffles)
+red_p <- lm(p ~ ps + di + pf, data = truffles)
+
+# 建立給定外生變數的預測資料框
+newdata_star <- data.frame(ps = PS_star, di = DI_star, pf = PF_star)
+
+# 進行預測
+pred_Q <- predict(red_q, newdata = newdata_star)
+pred_P <- predict(red_p, newdata = newdata_star)
+
+cat("從簡化式(Reduced-form)預測的均衡數量 Q* =", round(pred_Q, 4), "\n")
+cat("從簡化式(Reduced-form)預測的均衡價格 P* =", round(pred_P, 4), "\n")
+```
+
+```{r}
+# 11.28f
+# 1. 使用 OLS 估計反需求方程式
+inv_demand_ols <- lm(p ~ q + ps + di, data = truffles)
+summary(inv_demand_ols)
+
+# 2. 使用 OLS 估計反供給方程式
+inv_supply_ols <- lm(p ~ q + pf, data = truffles)
+summary(inv_supply_ols)
+```
+
