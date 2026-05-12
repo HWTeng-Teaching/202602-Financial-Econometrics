@@ -6,6 +6,7 @@ library(car)
 data = truffles
 
 #(b)
+
 #demand
 dem_iv <- ivreg(p ~ q + ps + di | ps + di + pf, data = truffles)
 coef(summary(dem_iv))
@@ -15,12 +16,14 @@ sup_iv <- ivreg(p ~ q + pf | ps + di + pf, data = truffles)
 coef(summary(sup_iv))
 
 #(c)
+
 Pbar <- mean(truffles$p)
 Qbar <- mean(truffles$q)
 elas <- (1 / coef(dem_iv)["q"]) * (Pbar / Qbar)
 round(c(Pbar = Pbar, Qbar = Qbar, elasticity = elas), 4)
 
 #(d)
+
 PSF <- 22
 DIF <- 3.5
 PFF <- 23
@@ -57,6 +60,7 @@ legend(
 )
 
 #(e)
+
 Q_eq <- (d_int - s_int) / (coef(sup_iv)["q"] - coef(dem_iv)["q"])
 P_eq <- d_int + coef(dem_iv)["q"] * Q_eq
 round(c(P_eq = unname(P_eq), Q_eq = unname(Q_eq)), 4)
@@ -79,6 +83,7 @@ round(rbind(
 ), 4)
 
 #(f)
+
 sup_ols <- lm(p ~ q + pf, data = truffles)
 round(coef(summary(sup_ols)), 4)
 
