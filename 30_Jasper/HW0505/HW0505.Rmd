@@ -1,0 +1,96 @@
+```{r}
+if(!require(AER)) install.packages("AER")
+library(AER)
+library(PoEdata)
+```
+11.24
+```{r}
+data("fultonfish", package = "PoEdata")
+head(fultonfish)
+```
+(a)
+```{r}
+res_reduced <- lm(lprice ~ mon + tue + wed + thu + stormy + mixed, data = fultonfish)
+summary(res_reduced)
+
+linearHypothesis(res_reduced, c("stormy = 0", "mixed = 0"))
+```
+(b)
+```{r}
+res_iv <- ivreg(lquan ~ lprice + mon + tue + wed + thu | 
+                stormy + mixed + mon + tue + wed + thu, data = fultonfish)
+summary(res_iv)
+```
+(c)
+```{r}
+summary(res_iv, diagnostics = TRUE)
+```
+(d)
+```{r}
+linearHypothesis(res_reduced, c("mon=0", "tue=0", "wed=0", "thu=0"))
+```
+
+11.28
+```{r}
+data("truffles", package = "PoEdata")
+head(truffles)
+```
+(b)
+```{r}
+demand_iv <- ivreg(q ~ p + di + ps | di + ps + pf, data = truffles)
+summary(demand_iv)
+
+supply_iv <- ivreg(q ~ p + pf | di + ps + pf, data = truffles)
+summary(supply_iv)
+```
+(c)
+```{r}
+p_bar <- mean(truffles$p)
+q_bar <- mean(truffles$q)
+
+elas_demand <- coef(demand_iv)["p"] * (p_bar / q_bar)
+
+elas_supply <- coef(supply_iv)["p"] * (p_bar / q_bar)
+
+cat("需求彈性:", elas_demand, "\n供給彈性:", elas_supply)
+```
+(d)
+```{r}
+di_val <- 3.5
+pf_val <- 23
+ps_val <- 22
+
+
+d_coef <- coef(demand_iv)
+s_coef <- coef(supply_iv)
+
+
+q_axis <- seq(min(truffles$q), max(truffles$q), length.out=100)
+
+p_demand <- (q_axis - d_coef[1] - d_coef["di"]*di_val - d_coef["ps"]*ps_val) / d_coef["p"]
+p_supply <- (q_axis - s_coef[1] - s_coef["pf"]*pf_val) / s_coef["p"]
+
+plot(q_axis, p_demand, type="l", col="blue", lwd=2, ylim=c(min(truffles$p), max(truffles$p)),
+     xlab="Quantity (Q)", ylab="Price (P)", main="Truffles Market Equilibrium")
+lines(q_axis, p_supply, col="red", lwd=2)
+legend("topright", legend=c("Demand", "Supply"), col=c("blue", "red"), lty=1)
+```
+(e)
+```{r}
+red_p <- lm(p ~ di + pf + ps, data = truffles)
+red_q <- lm(q ~ di + pf + ps, data = truffles)
+
+p_star <- predict(red_p, newdata = data.frame(di=3.5, pf=23, ps=22))
+q_star <- predict(red_q, newdata = data.frame(di=3.5, pf=23, ps=22))
+
+cat("均衡價格 P*:", p_star, "\n均衡數量 Q*:", q_star)
+```
+(f)
+```{r}
+demand_ols <- lm(q ~ p + di + ps, data = truffles)
+supply_ols <- lm(q ~ p + pf, data = truffles)
+
+cat("OLS 需求價格係數:", coef(demand_ols)["p"], 
+    "\n2SLS 需求價格係數:", coef(demand_iv)["p"])
+```
+
