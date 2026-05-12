@@ -4,9 +4,8 @@ library(POE5Rdata)
 library(AER)
 library(car)
 data = truffles
-#11.28(a) 略
 
-#11.28(b)
+#(b)
 #demand
 dem_iv <- ivreg(p ~ q + ps + di | ps + di + pf, data = truffles)
 coef(summary(dem_iv))
@@ -15,13 +14,13 @@ coef(summary(dem_iv))
 sup_iv <- ivreg(p ~ q + pf | ps + di + pf, data = truffles)
 coef(summary(sup_iv))
 
-#11.28(c)
+#(c)
 Pbar <- mean(truffles$p)
 Qbar <- mean(truffles$q)
 elas <- (1 / coef(dem_iv)["q"]) * (Pbar / Qbar)
 round(c(Pbar = Pbar, Qbar = Qbar, elasticity = elas), 4)
 
-#11.28(d)
+#(d)
 PSF <- 22
 DIF <- 3.5
 PFF <- 23
@@ -57,7 +56,7 @@ legend(
   bty = "n"
 )
 
-#11.28(e)
+#(e)
 Q_eq <- (d_int - s_int) / (coef(sup_iv)["q"] - coef(dem_iv)["q"])
 P_eq <- d_int + coef(dem_iv)["q"] * Q_eq
 round(c(P_eq = unname(P_eq), Q_eq = unname(Q_eq)), 4)
@@ -79,7 +78,7 @@ round(rbind(
   difference      = c(Q = unname(Q_eq - Q_rf), P = unname(P_eq - P_rf))
 ), 4)
 
-#11.28(f)
+#(f)
 sup_ols <- lm(p ~ q + pf, data = truffles)
 round(coef(summary(sup_ols)), 4)
 
