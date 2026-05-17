@@ -1,0 +1,164 @@
+---
+title: "HW0428"
+output:
+  html_document: default
+  pdf_document: default
+date: "2026-05-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### (a)
+```{r}
+library(wooldridge)
+data(mroz)
+
+mroz_selected <- subset(mroz, inlf == 1)
+
+mroz_selected$MOTHERCOLL <- ifelse(mroz_selected$motheduc > 12, 1, 0)
+mroz_selected$FATHERCOLL <- ifelse(mroz_selected$fatheduc > 12, 1, 0)
+
+mother_college_pct <- mean(mroz_selected$MOTHERCOLL, na.rm = TRUE) * 100
+father_college_pct <- mean(mroz_selected$FATHERCOLL, na.rm = TRUE) * 100
+
+nrow(mroz_selected)
+mother_college_pct
+father_college_pct
+```
+
+參與勞動市場的樣本共有 428 人。母親受過部分大學教育（motheduc > 12）的比例約為 12.15%，父親受過部分大學教育（fatheduc > 12）的比例約為 11.68%。結果顯示，樣本中父母具有較高教育程度的比例並不高。
+
+### (b)
+
+```{r}
+vars_for_corr <- mroz_selected[, c("educ", "MOTHERCOLL", "FATHERCOLL")]
+
+cor_matrix <- cor(vars_for_corr, use = "complete.obs")
+
+cor_matrix
+```
+
+由相關係數矩陣可知，EDUC 與 MOTHERCOLL 的相關係數約為 0.3595，而 EDUC 與 FATHERCOLL 的相關係數約為 0.3985。兩者皆呈現正相關，表示父母教育程度越高，子女的受教育年數通常也較高。
+
+
+### (c)
+
+```{r}
+library(ivreg)
+
+wage_iv_model <- ivreg(
+  log(wage) ~ educ + exper + I(exper^2) |
+    MOTHERCOLL + exper + I(exper^2),
+  data = mroz_selected
+)
+
+summary(wage_iv_model)
+
+confint(wage_iv_model, level = 0.95)["educ", ]
+```
+以 MOTHERCOLL 作為 EDUC 的工具變數進行 IV 估計後，EDUC 的估計係數約為 0.0760，表示教育年數每增加一年，工資約增加 7.60%。此外，EDUC 的 95% 信賴區間為 [-0.0014, 0.1535]。由於信賴區間包含 0，因此在 5% 顯著水準下，無法認定 EDUC 對工資具有顯著影響
+
+
+
+### (d)
+
+```{r}
+first_stage_d <- lm(
+  educ ~ exper + I(exper^2) + MOTHERCOLL,
+  data = mroz_selected
+)
+
+summary(first_stage_d)
+
+t_val <- summary(first_stage_d)$coefficients["MOTHERCOLL", "t value"]
+
+f_stat <- t_val^2
+
+f_stat
+```
+
+第一階段迴歸結果顯示，MOTHERCOLL 的係數約為 2.5171，t 值約為 7.973，表示母親受過部分大學教育會顯著提高子女的教育年數。由於只有一個工具變數，因此 F-statistic 可由 t 值平方得到，約為 63.5631。此數值遠大於常用的弱工具變數判準值 10，也高於 Stock-Yogo 臨界值 16.38，因此可認定 MOTHERCOLL 為強工具變數
+
+### (e)
+
+```{r}
+wage_iv_model_ef <- ivreg(
+  log(wage) ~ educ + exper + I(exper^2) |
+  MOTHERCOLL + FATHERCOLL + exper + I(exper^2),
+  data = mroz_selected
+)
+
+summary(wage_iv_model_ef)
+
+confint(wage_iv_model_ef, level = 0.95)["educ", ]
+```
+
+同時使用 MOTHERCOLL 與 FATHERCOLL 作為工具變數後，EDUC 的估計係數約為 0.0878，表示教育年數每增加一年，工資約增加 8.78%。其 95% 信賴區間為 [0.0273, 0.1483]。由於信賴區間不包含 0，因此在 5% 顯著水準下，EDUC 對工資具有顯著正向影響。
+
+### (f)
+
+```{r}
+library(car)
+
+first_stage_f <- lm(
+  educ ~ exper + I(exper^2) + MOTHERCOLL + FATHERCOLL,
+  data = mroz_selected
+)
+
+linearHypothesis(
+  first_stage_f,
+  c("MOTHERCOLL", "FATHERCOLL")
+)
+
+restricted_model <- lm(
+  educ ~ exper + I(exper^2),
+  data = mroz_selected
+)
+
+full_model <- lm(
+  educ ~ exper + I(exper^2) + MOTHERCOLL + FATHERCOLL,
+  data = mroz_selected
+)
+
+anova(restricted_model, full_model)
+```
+
+聯合顯著性檢定結果顯示，MOTHERCOLL 與 FATHERCOLL 的聯合 F-statistic 約為 56.963，且 p-value 小於 0.001，表示兩個工具變數對 EDUC 具有顯著解釋力。此外，此 F 值大於常用判準值 10，也高於 Stock-Yogo 臨界值 19.93，因此可拒絕工具變數為弱工具變數的虛無假設。
+
+### (g)
+
+```{r}
+mroz_e_clean <- na.omit(mroz_selected)
+
+first_stage_e <- lm(
+  educ ~ exper + I(exper^2) + MOTHERCOLL + FATHERCOLL,
+  data = mroz_e_clean
+)
+
+mroz_e_clean$educ_hat_e <- predict(first_stage_e)
+
+iv_manual_e <- lm(
+  log(wage) ~ educ_hat_e + exper + I(exper^2),
+  data = mroz_e_clean
+)
+
+mroz_e_clean$residuals <- residuals(iv_manual_e)
+
+sargan_reg <- lm(
+  residuals ~ exper + I(exper^2) + MOTHERCOLL + FATHERCOLL,
+  data = mroz_e_clean
+)
+
+r_squared <- summary(sargan_reg)$r.squared
+
+n <- nrow(mroz_e_clean)
+
+sargan_stat <- n * r_squared
+
+p_value_sargan <- 1 - pchisq(sargan_stat, df = 1)
+
+sargan_stat
+p_value_sargan
+```
+Sargan test 的虛無假設為工具變數具有有效性，也就是工具變數與誤差項不相關。檢定結果顯示，Sargan test statistic 約為 0.2137，而 p-value 約為 0.6439。由於 p-value 大於 0.05，因此無法拒絕虛無假設，表示目前沒有足夠證據認為 MOTHERCOLL 與 FATHERCOLL 為無效工具變數。
