@@ -1,0 +1,163 @@
+---
+title: "HW0428"
+output:
+  html_document: default
+  pdf_document: default
+date: "2026-05-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### (a)
+```{r}
+library(readr)
+library(dplyr)
+capm5 <- read_csv("capm5.csv")
+
+capm5$msftrf = (capm5$msft - capm5$riskfree)
+capm5$rmrf = (capm5$mkt - capm5$riskfree)
+
+msftrf = lm(msftrf ~ rmrf, data = capm5)
+
+summary(msftrf)
+
+beta_95ci <- confint(msftrf, level = 0.95)["rmrf", ]
+
+beta_95ci
+```
+
+CAPM 回歸結果中，Microsoft 股票的 beta（rmrf 係數）估計值約為 1.2018。其 95% 信賴區間為 [0.9608, 1.4429]。由於 beta 大於 1，表示 Microsoft 股票的風險高於市場投資組合，因此其報酬對市場波動較為敏感。
+
+### (b)
+
+```{r}
+capm5$rank = rank(capm5$rmrf)
+
+rmrf.ols = lm(rmrf ~ rank, data = capm5)
+
+summary(rmrf.ols)
+```
+
+第一階段迴歸中，RANK 的 t 值約為 43.10，因此對應的 F-statistic 約為 1857.61。此數值遠大於常用的弱工具變數判準值 10，因此 RANK 為非常強的工具變數。此外，模型的 R-squared 約為 0.9126，表示 RANK 對 rmrf 具有極高的解釋能力。
+
+
+### (c)
+
+```{r}
+capm5$rank = rank(capm5$rmrf)
+
+rmrf.ols = lm(rmrf ~ rank, data = capm5)
+
+capm5$v_hat = residuals(rmrf.ols)
+
+capm5$msftrf = (capm5$msft - capm5$riskfree)
+capm5$rmrf = (capm5$mkt - capm5$riskfree)
+
+capm5_model = lm(msftrf ~ rmrf + v_hat, data = capm5)
+
+summary(capm5_model)
+```
+此部分使用 Hausman test 檢查 rmrf 是否具有內生性。結果顯示，v_hat 的 t 值約為 -2.04，p-value 約為 0.0428。在 5% 顯著水準下，v_hat 顯著，因此可拒絕市場報酬外生性的虛無假設；但在 1% 顯著水準下，由於 p-value 大於 0.01，因此無法拒絕市場報酬外生性的虛無假設。
+
+
+
+### (d)
+
+```{r}
+library(AER)
+
+iv_model = ivreg(msftrf ~ rmrf | rank, data = capm5)
+
+summary(iv_model)
+
+beta_95CI = confint(iv_model, level = 0.95)["rmrf", ]
+
+beta_95CI
+```
+
+使用 RANK 作為工具變數進行 IV/2SLS 估計後，beta 的估計值約為 1.2783。其 95% 信賴區間約為 [1.0274, 1.5292]。由於整個信賴區間皆大於 1，因此可拒絕 Microsoft 的 beta 等於 1 的虛無假設，表示 Microsoft 股票的系統性風險高於市場平均水準。
+
+### (e)
+
+```{r}
+capm5$POS <- ifelse(capm5$rmrf > 0, 1, 0)
+
+first_stage_model_e <- lm(rmrf ~ rank + POS, data = capm5)
+
+summary(first_stage_model_e)
+```
+
+加入 POS 作為額外工具變數後，第一階段回歸的 F-statistic 約為 951.3，遠大於 10，因此工具變數依然非常強。RANK 仍然高度顯著，而 POS 的 p-value 約為 0.0291，在 5% 顯著水準下具有顯著性。模型的 R-squared 約為 0.9149，表示這些工具變數對 rmrf 具有很高的解釋能力。
+
+### (f)
+
+```{r}
+first_stage_model_e <- lm(rmrf ~ rank + POS, data = capm5)
+
+capm5$residuals_first_stage <- residuals(first_stage_model_e)
+
+capm5_model <- lm(msftrf ~ rmrf + residuals_first_stage, data = capm5)
+
+summary(capm5_model)
+
+hausman_test_result <- linearHypothesis(
+  capm5_model,
+  "residuals_first_stage = 0"
+)
+
+print(hausman_test_result)
+```
+
+Hausman test 結果顯示，residuals_first_stage 的 p-value 約為 0.0287。在 5% 顯著水準下，殘差項顯著，因此可拒絕市場報酬外生性的虛無假設；但在 1% 顯著水準下，由於 p-value 大於 0.01，因此無法拒絕市場報酬為外生性的假設。
+
+### (g)
+
+```{r}
+library(AER)
+
+capm_iv_model <- ivreg(msftrf ~ rmrf | rank + POS, data = capm5)
+
+summary(capm_iv_model)
+
+ols_model <- lm(msftrf ~ rmrf, data = capm5)
+
+summary(ols_model)
+
+iv_beta <- coef(capm_iv_model)["rmrf"]
+ols_beta <- coef(ols_model)["rmrf"]
+
+iv_beta
+ols_beta
+
+iv_beta_95CI <- confint(capm_iv_model, level = 0.95)["rmrf", ]
+
+iv_beta_95CI
+```
+在 2SLS 模型中，beta 的估計值約為 1.2831，高於 OLS 模型中的 1.2018。如果存在測量誤差，OLS 估計量通常會受到衰減偏誤影響，因此 2SLS 的估計值較大是合理結果。此外，2SLS 模型中 beta 的 95% 信賴區間約為 [1.0325, 1.5337]，整個區間皆大於 1，因此可拒絕 Microsoft 的 beta 等於 1 的虛無假設。
+
+### (h)
+
+```{r}
+residuals_iv = residuals(capm_iv_model)
+
+OLS_eIV = lm(residuals_iv ~ rank + POS, data = capm5)
+
+summary_OLS_eIV = summary(OLS_eIV)
+
+N = length(capm5$msft)
+
+Rsqard = summary_OLS_eIV$r.squared
+
+Rsqard * N
+
+chi_2 = qchisq(0.95, 1)
+
+chi_2_critical = chi_2
+
+chi_2_critical
+```
+
+Sargan test 用於檢驗過度識別限制，也就是檢查多餘工具變數是否有效。檢定結果顯示，Sargan test statistic（NR
+2
+）約為 0.5585，而 5% 顯著水準下的卡方臨界值約為 3.841。由於檢定統計量小於臨界值，因此無法拒絕虛無假設，表示額外的工具變數具有有效性。
