@@ -1,0 +1,230 @@
+---
+title: "HW0428_314707031"
+author: "James"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r packages}
+library(AER)
+library(car)
+library(POE5Rdata)
+library(knitr)
+```
+
+# Exercise 10.18: MROZ Working Wives
+
+This exercise uses the `mroz` data from the `POE5Rdata` package. We restrict the sample to married women who are in the labor force. The main question is whether education is endogenous in the wage equation and whether parental education can be used as instruments for education.
+
+```{r load-mroz}
+data("mroz")
+
+mroz1 <- mroz[mroz$lfp == 1, ]
+```
+
+## 10.18(a)
+
+```{r mroz-a}
+mroz1$MOTHERCOLL <- ifelse(mroz1$mothereduc > 12, 1, 0)
+mroz1$FATHERCOLL <- ifelse(mroz1$fathereduc > 12, 1, 0)
+
+pct_mother_coll <- mean(mroz1$MOTHERCOLL) * 100
+pct_father_coll <- mean(mroz1$FATHERCOLL) * 100
+
+parent_college <- data.frame(
+  Variable = c("MOTHERCOLL", "FATHERCOLL"),
+  Percentage = c(pct_mother_coll, pct_father_coll)
+)
+
+kable(parent_college, digits = 2,
+      caption = "Percentage of parents with some college education")
+```
+
+**Explanation.**  
+`MOTHERCOLL` equals 1 if the mother's education is greater than 12 years, and 0 otherwise. `FATHERCOLL` is defined in the same way for the father. These variables measure whether each parent has some college education. The percentages show how common college-educated parents are in the working-wife subsample.
+
+## 10.18(b)
+
+```{r mroz-b}
+cor_matrix <- cor(mroz1[, c("educ", "MOTHERCOLL", "FATHERCOLL")])
+cor_matrix
+```
+
+**Explanation.**  
+The correlation matrix shows the linear relationship among the wife's education, mother's college indicator, and father's college indicator. If parental college indicators are correlated with the wife's education, they may be relevant instruments. However, correlation alone does not prove instrument validity, because validity also requires the instruments to be exogenous in the wage equation.
+
+## 10.18(c)
+
+```{r mroz-c}
+model_c <- ivreg(log(wage) ~ educ + exper + I(exper^2) |
+                   MOTHERCOLL + exper + I(exper^2),
+                 data = mroz1)
+
+summary(model_c)
+confint(model_c, "educ", level = 0.95)
+```
+
+**Explanation.**  
+This model estimates the return to education using instrumental variables. Education is treated as endogenous, and `MOTHERCOLL` is used as the excluded instrument. Experience and experience squared are included as exogenous controls. The coefficient on `educ` measures the estimated percentage change in wage from one additional year of education, holding experience fixed. The confidence interval reports the uncertainty of this IV estimate.
+
+## 10.18(d)
+
+```{r mroz-d}
+first_stage_d <- lm(educ ~ exper + I(exper^2) + MOTHERCOLL,
+                    data = mroz1)
+
+summary(first_stage_d)
+linearHypothesis(first_stage_d, "MOTHERCOLL = 0")
+```
+
+**Explanation.**  
+The first-stage regression checks whether `MOTHERCOLL` helps explain the wife's education after controlling for experience. The F test for `MOTHERCOLL = 0` is a relevance test for the instrument. A larger and statistically significant F statistic suggests that the instrument is relevant. A weak first stage would make the IV estimate unreliable, because apparently even instruments can have performance anxiety.
+
+## 10.18(e)
+
+```{r mroz-e}
+model_e <- ivreg(log(wage) ~ educ + exper + I(exper^2) |
+                   MOTHERCOLL + FATHERCOLL + exper + I(exper^2),
+                 data = mroz1)
+
+summary(model_e)
+confint(model_e, "educ", level = 0.95)
+```
+
+**Explanation.**  
+This model uses both `MOTHERCOLL` and `FATHERCOLL` as instruments for education. Since there are now two excluded instruments for one endogenous variable, the model is overidentified. The coefficient on `educ` is again interpreted as the IV estimate of the return to education. Using more instruments can improve precision if the instruments are valid and relevant, but invalid instruments can make the estimate worse rather than better.
+
+## 10.18(f)
+
+```{r mroz-f}
+first_stage_f <- lm(educ ~ exper + I(exper^2) + MOTHERCOLL + FATHERCOLL,
+                    data = mroz1)
+
+summary(first_stage_f)
+linearHypothesis(first_stage_f,
+                 c("MOTHERCOLL = 0", "FATHERCOLL = 0"))
+```
+
+**Explanation.**  
+This first-stage regression tests whether the two parental college indicators jointly explain the wife's education. The joint F test examines whether `MOTHERCOLL` and `FATHERCOLL` are jointly relevant instruments. A statistically significant joint test supports instrument relevance.
+
+## 10.18(g)
+
+```{r mroz-g}
+summary(model_e, diagnostics = TRUE)
+```
+
+**Explanation.**  
+The diagnostic output reports tests related to IV estimation. The weak instruments test evaluates whether the instruments are sufficiently related to education. The Wu-Hausman test checks whether education appears endogenous. The Sargan test examines the overidentifying restriction when there are more instruments than endogenous regressors. If the Sargan test rejects, it suggests that at least one instrument may be invalid.
+
+# Exercise 10.20: CAPM and IV Estimation
+
+This exercise uses the `capm5` data from the `POE5Rdata` package. The goal is to estimate Microsoft's market beta using the CAPM framework. The dependent variable is Microsoft's excess return, and the main explanatory variable is the market excess return.
+
+```{r load-capm}
+data("capm5")
+
+capm5$msft_rp <- capm5$msft - capm5$riskfree
+capm5$mkt_rp <- capm5$mkt - capm5$riskfree
+```
+
+## 10.20(a)
+
+```{r capm-a}
+capm_ols <- lm(msft_rp ~ mkt_rp, data = capm5)
+summary(capm_ols)
+```
+
+**Explanation.**  
+This is the ordinary least squares CAPM regression. The coefficient on `mkt_rp` is Microsoft's estimated beta. It measures how sensitive Microsoft's excess return is to the market excess return. A beta greater than one means Microsoft tends to move more than the market, while a beta less than one means it tends to move less.
+
+## 10.20(b)
+
+```{r capm-b}
+capm5$RANK <- rank(capm5$mkt_rp)
+
+first_stage_b <- lm(mkt_rp ~ RANK, data = capm5)
+summary(first_stage_b)
+```
+
+**Explanation.**  
+This first-stage regression uses the rank of the market excess return as an instrument for the market excess return itself. The first stage checks whether `RANK` is strongly related to `mkt_rp`. Since ranking is directly based on `mkt_rp`, the instrument should usually be highly correlated with the market excess return.
+
+## 10.20(c)
+
+```{r capm-c}
+capm5$v_hat <- residuals(first_stage_b)
+
+augmented_model <- lm(msft_rp ~ mkt_rp + v_hat, data = capm5)
+summary(augmented_model)
+```
+
+**Explanation.**  
+This is a control-function style test. The residual from the first-stage regression, `v_hat`, is added to the CAPM regression. If `v_hat` is statistically significant, it suggests that `mkt_rp` may be endogenous. If it is not significant, there is less evidence against exogeneity.
+
+## 10.20(d)
+
+```{r capm-d}
+capm_iv <- ivreg(msft_rp ~ mkt_rp | RANK, data = capm5)
+summary(capm_iv)
+```
+
+**Explanation.**  
+This IV regression estimates Microsoft's beta using `RANK` as the instrument for `mkt_rp`. The IV estimate can be compared with the OLS estimate. If the market excess return is exogenous, OLS and IV should be similar, although IV may be less efficient.
+
+## 10.20(e)
+
+```{r capm-e}
+capm5$POS <- ifelse(capm5$mkt_rp > 0, 1, 0)
+
+first_stage_e <- lm(mkt_rp ~ RANK + POS, data = capm5)
+summary(first_stage_e)
+```
+
+**Explanation.**  
+This first-stage regression adds `POS`, an indicator equal to one when the market excess return is positive. The regression checks whether `RANK` and `POS` jointly explain the market excess return. Since `POS` captures whether the market return is above zero, it may add information beyond the rank variable.
+
+## 10.20(f)
+
+```{r capm-f}
+capm5$v_hat_e <- residuals(first_stage_e)
+
+augmented_model_f <- lm(msft_rp ~ mkt_rp + v_hat_e, data = capm5)
+summary(augmented_model_f)
+```
+
+**Explanation.**  
+This augmented regression again adds the first-stage residual to the CAPM equation. Here the residual comes from the first stage with both `RANK` and `POS`. The significance of `v_hat_e` is used to check whether there is evidence that `mkt_rp` is endogenous.
+
+## 10.20(g)
+
+```{r capm-g}
+capm_iv_g <- ivreg(msft_rp ~ mkt_rp | RANK + POS, data = capm5)
+summary(capm_iv_g)
+```
+
+**Explanation.**  
+This IV regression uses two instruments, `RANK` and `POS`, for one endogenous regressor, `mkt_rp`. Because the model has more instruments than endogenous regressors, it is overidentified. The estimated coefficient on `mkt_rp` is the IV estimate of Microsoft's beta.
+
+## 10.20(h)
+
+```{r capm-h}
+capm5$e_iv <- residuals(capm_iv_g)
+
+sargan_aux <- lm(e_iv ~ RANK + POS, data = capm5)
+
+N <- nobs(sargan_aux)
+r_squared_aux <- summary(sargan_aux)$r.squared
+sargan_stat <- N * r_squared_aux
+
+p_value <- 1 - pchisq(sargan_stat, df = 1)
+
+cat("Sargan Statistic:", sargan_stat, "\n")
+cat("P-value:", p_value, "\n")
+```
+
+**Explanation.**  
+The Sargan test checks the overidentifying restriction in the IV model. The test statistic is computed as sample size times the R-squared from the auxiliary regression of IV residuals on all instruments. Since there are two instruments and one endogenous regressor, the degrees of freedom are one. A small p-value would suggest that at least one instrument may be invalid. A large p-value means we do not reject the overidentifying restriction.
