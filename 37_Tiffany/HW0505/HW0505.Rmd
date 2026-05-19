@@ -1,0 +1,135 @@
+---
+title: "HW0505"
+output: html_document
+date: "2026-05-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# install.packages("car")
+# install.packages("AER")
+library(readxl)
+library(car)  # 解決 linearHypothesis 的錯誤
+library(AER)  # 預防後面 ivreg 出現錯誤
+```
+
+
+```{r}
+# 11.24
+rm(list=ls())
+library(readxl)
+fultonfish <- read.csv("C:/Users/tiffa/OneDrive/Desktop/eco_fin/fultonfish.csv")
+data('fultonfish')
+
+# a.
+rf_price = lm(lprice ~ mon + tue + wed + thu + stormy + mixed, data = fultonfish)
+cat("ANS of a.", "\n")
+summary(rf_price) 
+linearHypothesis(rf_price, c("stormy = 0", "mixed = 0"))
+cat("STORMY係數為0.44634。且p-val為顯著。在暴風雨下，魚價會顯著上升。", "\n")
+cat("MIXED係數為0.23688。且p-val為顯著。在暴風雨下，混合天啟會導致魚價上升。", "\n")
+cat("Joint Significant Test 確認上述兩個變數是否為有效變數。因為p-val小於0.05，所以拒絕虛無假設。天氣變
+數對內生變數有顯著解釋力", "\n")
+
+
+# b.
+demand_iv = ivreg(lquan ~ lprice + mon + tue + wed + thu | 
+                     mon + tue + wed + thu + stormy + mixed, data = fultonfish)
+cat("ANS of b.", "\n")
+summary(demand_iv)
+cat("Lquan hat = 8.54023-0.93014*lprice-0.0119*mom-0.52583*tue-0.56262*wed+0.009987*thu", "\n")
+cat("lprice係數增加，但同為負號，且p值下降小於0.01，落在1%的reject region內。而table 11.5的lprice係數只能拒絕5%的虛無假設", "\n")
+
+# c.
+cat("ANS of c.", "\n")
+summary(demand_iv, diagnostics = TRUE)
+cat("Sargan test要檢定工具變數與需求函數誤差像無關。表中p-val=0.38 can not reject H0。代表所選的工具變數具備外生性，模性設定是穩健的。", "\n")
+
+# d.
+cat("ANS of d.", "\n")
+linearHypothesis(rf_price, c("mon = 0", "tue = 0", "wed = 0", "thu = 0"))
+cat("ANS of d.", "\n")
+cat("H0：mon=tue=wed=thu=0 vs. H1：at least one is not 0", "\n")
+cat("p-val=0.6437 > 0.05。not reject H0。代表在恐至天氣因素後，星期一至四對於魚的價格無顯著聯合影響，即市場價格波動來自於天氣所影響的供給面變動，並非每週固定週期的需求供給變動。", "\n")
+cat("此題詞無法估計供給函數，因為星期一至四的聯合顯著性檢定無法reject H0。若要估計函數，至捨需要一個只能影響需求但不能影響供給的工具變數，但今天微星期幾此一項變數不符合，因此無法透過需求曲線移動勾勒出供給曲線", "\n")
+```
+
+```{r}
+# 22.28
+truffles <- read.csv("C:/Users/tiffa/OneDrive/Desktop/eco_fin/truffles.csv")
+# b.
+library(AER)
+data("truffles")
+
+# 將價格 P 作為被解變數，使用 Q, PS, DI 為需求方程的解釋變數
+demand_2sls <- ivreg(p ~ q + ps + di | ps + di + pf, data = truffles)
+
+# 供給方程：價格 P 被解出，Q 和 PF 作為解釋變數
+supply_2sls <- ivreg(p ~ q + pf | di + ps + pf, data = truffles)
+
+cat("ANS of b.", "\n")
+summary(demand_2sls, diagnostics = TRUE)
+summary(supply_2sls, diagnostics = TRUE)
+
+# c.
+# 取得需求方程式係數
+coefs <- coef(demand_2sls)
+
+# 計算自變數平均值
+means <- colMeans(truffles[, c("q", "ps", "di")])
+
+# 在平均值下估計價格 P
+P_at_means <- coefs["(Intercept)"] + 
+              coefs["q"] * means["q"] + 
+              coefs["ps"] * means["ps"] + 
+              coefs["di"] * means["di"]
+cat("ANS of c.", "\n")
+cat("平均價格 P =", P_at_means, "\n")
+cat("平均數量 Q =", means["q"], "\n")
+
+# 計算需求價格彈性
+delta_2 <- coefs["q"]
+elasticity <- (1 / delta_2) * (P_at_means / means["q"])
+cat("需求價格彈性 =", elasticity, "\n")
+
+# d.
+library(ggplot2)
+
+# 需求方程式係數
+d_coefs <- coef(demand_2sls)
+# 供給方程式係數
+s_coefs <- coef(supply_2sls)
+
+# 固定外生變數
+DI_star <- 3.5
+PF_star <- 23
+PS_star <- 22
+
+# 設定 Q 範圍
+Q_vals <- seq(min(truffles$q), max(truffles$q), length.out = 100)
+
+# 計算需求價格
+P_demand <- d_coefs["(Intercept)"] + d_coefs["q"] * Q_vals + d_coefs["ps"] * PS_star + d_coefs["di"] * DI_star
+
+# 計算供給價格
+P_supply <- s_coefs["(Intercept)"] + s_coefs["q"] * Q_vals + s_coefs["pf"] * PF_star
+
+# 建立資料框
+df <- data.frame(
+  Q = rep(Q_vals, 2),
+  P = c(P_demand, P_supply),
+  Curve = factor(rep(c("Demand", "Supply"), each = length(Q_vals)))
+)
+
+cat("ANS of d.", "\n")
+ggplot(df, aes(x = Q, y = P, color = Curve)) +
+  geom_line(size = 1) +
+  labs(title = "Supply and Demand Curves",
+       x = "Quantity (Q)",
+       y = "Price (P)") +
+  theme_minimal()
+```
+
