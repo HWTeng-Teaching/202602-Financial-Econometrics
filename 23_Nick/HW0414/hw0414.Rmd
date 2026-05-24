@@ -1,0 +1,214 @@
+---
+title: "hw0414_8.16"
+author: ""
+date: ""
+output:
+  html_document:
+    toc: true
+    number_sections: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# Load data and helper functions
+
+```{r}
+data_path <- if (file.exists("vacation.csv")) "vacation.csv" else "/mnt/data/vacation.csv"
+vacation <- read.csv(data_path)
+
+# Check variable names
+str(vacation)
+summary(vacation)
+
+# Model used in this problem
+ols_model <- lm(miles ~ income + age + kids, data = vacation)
+
+# HC1 robust variance-covariance matrix for lm / weighted lm
+vcov_hc1 <- function(model) {
+  X <- model.matrix(model)
+  u <- residuals(model)
+  w <- weights(model)
+  if (is.null(w)) w <- rep(1, length(u))
+  Xw <- X * sqrt(w)
+  uw <- u * sqrt(w)
+  n <- nrow(Xw)
+  k <- ncol(Xw)
+  XtX_inv <- solve(t(Xw) %*% Xw)
+  meat <- t(Xw) %*% diag(as.numeric(uw^2), nrow = n) %*% Xw
+  (n / (n - k)) * XtX_inv %*% meat %*% XtX_inv
+}
+
+coef_table <- function(model, vcov_mat = vcov(model), level = 0.95) {
+  beta <- coef(model)
+  se <- sqrt(diag(vcov_mat))
+  df <- df.residual(model)
+  tval <- beta / se
+  pval <- 2 * pt(abs(tval), df = df, lower.tail = FALSE)
+  crit <- qt(1 - (1 - level) / 2, df = df)
+  out <- data.frame(
+    Estimate = beta,
+    Std_Error = se,
+    t_value = tval,
+    p_value = pval,
+    CI_Lower = beta - crit * se,
+    CI_Upper = beta + crit * se
+  )
+  round(out, 4)
+}
+
+ci_for_coef <- function(model, coef_name, vcov_mat = vcov(model), level = 0.95) {
+  beta <- coef(model)[coef_name]
+  se <- sqrt(diag(vcov_mat))[coef_name]
+  df <- df.residual(model)
+  crit <- qt(1 - (1 - level) / 2, df = df)
+  c(lower = beta - crit * se, estimate = beta, upper = beta + crit * se)
+}
+```
+
+# (a) OLS estimation and 95% interval for KIDS
+
+```{r}
+summary(ols_model)
+
+ols_table <- coef_table(ols_model)
+knitr::kable(ols_table, caption = "OLS estimates with conventional standard errors")
+
+ci_kids_ols <- ci_for_coef(ols_model, "kids")
+round(ci_kids_ols, 4)
+```
+
+**Answer.** Holding income and age constant, one additional child is associated with an estimated `r round(coef(ols_model)["kids"], 2)` fewer miles traveled. The 95% confidence interval is [`r round(ci_kids_ols["lower"], 2)`, `r round(ci_kids_ols["upper"], 2)`]. Since the whole interval is negative, the estimated effect of one more child is statistically negative at the 5% level.
+
+# (b) Residual plots versus INCOME and AGE
+
+```{r, fig.width=10, fig.height=4}
+par(mfrow = c(1, 2))
+plot(vacation$income, residuals(ols_model),
+     xlab = "INCOME ($1000 units)", ylab = "OLS residuals",
+     main = "Residuals vs INCOME", pch = 19, col = "gray40")
+abline(h = 0, lty = 2)
+
+plot(vacation$age, residuals(ols_model),
+     xlab = "AGE", ylab = "OLS residuals",
+     main = "Residuals vs AGE", pch = 19, col = "gray40")
+abline(h = 0, lty = 2)
+par(mfrow = c(1, 1))
+```
+
+**Answer.** The residual plot against income shows a fan-shaped pattern: the spread of the residuals tends to be larger for higher-income households. The pattern against age is much weaker. This suggests that heteroskedasticity is present, mainly related to income.
+
+# (c) Goldfeld--Quandt test after sorting by income
+
+Sort observations by increasing income. Estimate the model using the first 90 observations and the last 90 observations. The middle 20 observations are omitted.
+
+```{r}
+vac_sorted <- vacation[order(vacation$income), ]
+low_income <- head(vac_sorted, 90)
+high_income <- tail(vac_sorted, 90)
+
+ols_low <- lm(miles ~ income + age + kids, data = low_income)
+ols_high <- lm(miles ~ income + age + kids, data = high_income)
+
+low_table <- coef_table(ols_low)
+high_table <- coef_table(ols_high)
+
+knitr::kable(low_table, caption = "OLS estimates: first 90 low-income observations")
+knitr::kable(high_table, caption = "OLS estimates: last 90 high-income observations")
+
+sse_low <- sum(residuals(ols_low)^2)
+sse_high <- sum(residuals(ols_high)^2)
+df_low <- df.residual(ols_low)
+df_high <- df.residual(ols_high)
+
+mse_low <- sse_low / df_low
+mse_high <- sse_high / df_high
+
+F_gq <- mse_high / mse_low
+F_crit <- qf(0.95, df1 = df_high, df2 = df_low)
+p_value_gq <- 1 - pf(F_gq, df1 = df_high, df2 = df_low)
+
+gq_results <- data.frame(
+  SSE_low_income = sse_low,
+  SSE_high_income = sse_high,
+  MSE_low_income = mse_low,
+  MSE_high_income = mse_high,
+  F_statistic = F_gq,
+  F_critical_5pct = F_crit,
+  p_value = p_value_gq
+)
+knitr::kable(round(gq_results, 4), caption = "Goldfeld--Quandt test results")
+```
+
+**Hypotheses.**  
+$H_0$: The error variance is constant across observations.  
+$H_1$: The error variance is larger for high-income households than for low-income households.
+
+**Answer.** The Goldfeld--Quandt statistic is `r round(F_gq, 4)`, while the 5% upper-tail critical value is `r round(F_crit, 4)`. Because the test statistic is larger than the critical value, we reject the null hypothesis at the 5% level. This supports the presence of heteroskedasticity that increases with income.
+
+# (d) OLS with heteroskedasticity-robust standard errors
+
+```{r}
+vcov_ols_hc1 <- vcov_hc1(ols_model)
+ols_robust_table <- coef_table(ols_model, vcov_ols_hc1)
+knitr::kable(ols_robust_table, caption = "OLS estimates with HC1 robust standard errors")
+
+ci_kids_ols_robust <- ci_for_coef(ols_model, "kids", vcov_ols_hc1)
+round(ci_kids_ols_robust, 4)
+```
+
+**Answer.** With heteroskedasticity-robust standard errors, the 95% confidence interval for the effect of one more child is [`r round(ci_kids_ols_robust["lower"], 2)`, `r round(ci_kids_ols_robust["upper"], 2)`]. This interval is slightly wider than the conventional OLS interval in part (a), but the conclusion is the same: one more child has a negative and statistically significant effect on miles traveled.
+
+# (e) GLS assuming \(\sigma_i^2 = \sigma^2 INCOME_i^2\)
+
+If $\sigma_i^2 = \sigma^2 INCOME_i^2$, then the efficient GLS estimator is obtained by weighted least squares with weights $1/INCOME_i^2$.
+
+```{r}
+gls_model <- lm(miles ~ income + age + kids,
+                data = vacation,
+                weights = 1 / income^2)
+
+summary(gls_model)
+
+gls_table <- coef_table(gls_model)
+knitr::kable(gls_table, caption = "GLS/WLS estimates with conventional standard errors")
+
+ci_kids_gls <- ci_for_coef(gls_model, "kids")
+round(ci_kids_gls, 4)
+```
+
+Now compute robust standard errors for the GLS/WLS regression.
+
+```{r}
+vcov_gls_hc1 <- vcov_hc1(gls_model)
+gls_robust_table <- coef_table(gls_model, vcov_gls_hc1)
+knitr::kable(gls_robust_table, caption = "GLS/WLS estimates with HC1 robust standard errors")
+
+ci_kids_gls_robust <- ci_for_coef(gls_model, "kids", vcov_gls_hc1)
+round(ci_kids_gls_robust, 4)
+```
+
+**Answer.** The GLS estimate of the effect of one more child is `r round(coef(gls_model)["kids"], 2)`. The conventional GLS 95% confidence interval is [`r round(ci_kids_gls["lower"], 2)`, `r round(ci_kids_gls["upper"], 2)`], and the robust GLS 95% confidence interval is [`r round(ci_kids_gls_robust["lower"], 2)`, `r round(ci_kids_gls_robust["upper"], 2)`]. Compared with parts (a) and (d), the GLS intervals are narrower, especially under the conventional GLS standard error. The robust GLS interval is still negative and statistically significant.
+
+# Final comparison
+
+```{r}
+interval_comparison <- data.frame(
+  Method = c("OLS conventional", "OLS robust", "GLS conventional", "GLS robust"),
+  Estimate = c(coef(ols_model)["kids"], coef(ols_model)["kids"],
+               coef(gls_model)["kids"], coef(gls_model)["kids"]),
+  Lower_95 = c(ci_kids_ols["lower"], ci_kids_ols_robust["lower"],
+               ci_kids_gls["lower"], ci_kids_gls_robust["lower"]),
+  Upper_95 = c(ci_kids_ols["upper"], ci_kids_ols_robust["upper"],
+               ci_kids_gls["upper"], ci_kids_gls_robust["upper"])
+)
+interval_comparison_print <- interval_comparison
+num_cols <- sapply(interval_comparison_print, is.numeric)
+interval_comparison_print[num_cols] <- lapply(interval_comparison_print[num_cols], round, 4)
+
+knitr::kable(interval_comparison_print,
+             caption = "95% interval estimates for the effect of one more child")
+```
+
+**Overall answer.** All methods estimate a negative effect of the number of children on miles traveled, holding income and age constant. The residual plots and the Goldfeld--Quandt test indicate heteroskedasticity related to income, so robust standard errors or GLS/WLS are more appropriate than relying only on conventional OLS standard errors.
