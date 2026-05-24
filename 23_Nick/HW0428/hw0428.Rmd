@@ -1,0 +1,347 @@
+---
+title: "hw0428"
+author: ""
+date: ""
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+options(scipen = 999, digits = 5)
+
+kable_num <- function(x, caption = NULL, digits = 4, row.names = NA) {
+  x <- as.data.frame(x)
+  num_cols <- sapply(x, is.numeric)
+  x[num_cols] <- lapply(x[num_cols], round, digits)
+  knitr::kable(x, caption = caption, row.names = row.names)
+}
+
+joint_F <- function(restricted, unrestricted, q) {
+  rss_r <- sum(resid(restricted)^2)
+  rss_u <- sum(resid(unrestricted)^2)
+  n <- nobs(unrestricted)
+  k_u <- length(coef(unrestricted))
+  F_stat <- ((rss_r - rss_u) / q) / (rss_u / (n - k_u))
+  p_val <- pf(F_stat, q, n - k_u, lower.tail = FALSE)
+  data.frame(F = F_stat, df1 = q, df2 = n - k_u, p_value = p_val)
+}
+
+iv_2sls <- function(y, X, Z) {
+  y <- as.matrix(y)
+  X <- as.matrix(X)
+  Z <- as.matrix(Z)
+  n <- nrow(X)
+  k <- ncol(X)
+  
+  ZtZ_inv <- solve(t(Z) %*% Z)
+  XPZX <- t(X) %*% Z %*% ZtZ_inv %*% t(Z) %*% X
+  beta <- solve(XPZX) %*% t(X) %*% Z %*% ZtZ_inv %*% t(Z) %*% y
+  residuals <- as.vector(y - X %*% beta)
+  sigma2 <- sum(residuals^2) / (n - k)
+  vcov <- as.numeric(sigma2) * solve(XPZX)
+  se <- sqrt(diag(vcov))
+  t_val <- as.vector(beta) / se
+  p_val <- 2 * pt(abs(t_val), df = n - k, lower.tail = FALSE)
+  crit <- qt(0.975, df = n - k)
+  
+  table <- data.frame(
+    term = colnames(X),
+    estimate = as.vector(beta),
+    std_error = se,
+    t_value = t_val,
+    p_value = p_val,
+    conf_low = as.vector(beta) - crit * se,
+    conf_high = as.vector(beta) + crit * se
+  )
+  
+  list(table = table, residuals = residuals, vcov = vcov, df = n - k)
+}
+
+sargan_test <- function(iv_residuals, Z_no_intercept, df_overid) {
+  aux_data <- data.frame(iv_residuals = iv_residuals, Z_no_intercept)
+  aux <- lm(iv_residuals ~ ., data = aux_data)
+  stat <- length(iv_residuals) * summary(aux)$r.squared
+  p_val <- pchisq(stat, df = df_overid, lower.tail = FALSE)
+  data.frame(statistic = stat, df = df_overid, p_value = p_val)
+}
+```
+
+# Exercise 10.18: Mroz data
+
+```{r read-mroz}
+mroz <- read.csv("mroz.csv")
+
+# The question asks for the 428 married women who participate in the labor force.
+mroz_work <- subset(mroz, lfp == 1 & wage > 0)
+
+mroz_work$lwage <- log(mroz_work$wage)
+mroz_work$exper2 <- mroz_work$exper^2
+mroz_work$MOTHERCOLL <- ifelse(mroz_work$mothereduc > 12, 1, 0)
+mroz_work$FATHERCOLL <- ifelse(mroz_work$fathereduc > 12, 1, 0)
+
+nrow(mroz_work)
+```
+
+## 10.18(a)
+
+```{r mroz-a}
+parent_percent <- data.frame(
+  Variable = c("MOTHERCOLL", "FATHERCOLL", "All parents combined"),
+  Percent = c(
+    mean(mroz_work$MOTHERCOLL) * 100,
+    mean(mroz_work$FATHERCOLL) * 100,
+    mean(c(mroz_work$MOTHERCOLL, mroz_work$FATHERCOLL)) * 100
+  )
+)
+
+kable_num(parent_percent, caption = "Percentage of parents with some college education", row.names = FALSE)
+```
+
+**Answer.** About `r round(mean(mroz_work$MOTHERCOLL) * 100, 2)`% of mothers and `r round(mean(mroz_work$FATHERCOLL) * 100, 2)`% of fathers have some college education. Combining mothers and fathers, the parent-level percentage is about `r round(mean(c(mroz_work$MOTHERCOLL, mroz_work$FATHERCOLL)) * 100, 2)`%.
+
+## 10.18(b)
+
+```{r mroz-b}
+corr_mat <- cor(mroz_work[, c("educ", "MOTHERCOLL", "FATHERCOLL")])
+kable_num(corr_mat, caption = "Correlations among EDUC, MOTHERCOLL, and FATHERCOLL")
+```
+
+**Answer.** The correlations between `EDUC` and the two proposed instruments are moderate: `MOTHERCOLL` is correlated with `EDUC` by about `r round(corr_mat["educ", "MOTHERCOLL"], 3)`, and `FATHERCOLL` is correlated with `EDUC` by about `r round(corr_mat["educ", "FATHERCOLL"], 3)`. These magnitudes matter because instruments must be relevant. The college dummies may be better than raw parent education because the college threshold may capture a stronger non-linear family education effect, while using fewer direct details about parental background.
+
+## 10.18(c)
+
+The wage equation from Example 10.5 is taken to be
+
+\[
+\log(WAGE)=\beta_0+\beta_1 EDUC+\beta_2 EXPER+\beta_3 EXPER^2+u.
+\]
+
+Here, `EDUC` is treated as endogenous and `MOTHERCOLL` is used as the excluded instrument.
+
+```{r mroz-c}
+y_mroz <- mroz_work$lwage
+X_mroz <- model.matrix(~ educ + exper + exper2, data = mroz_work)
+Z_mother <- model.matrix(~ exper + exper2 + MOTHERCOLL, data = mroz_work)
+
+iv_mother <- iv_2sls(y_mroz, X_mroz, Z_mother)
+kable_num(iv_mother$table, caption = "2SLS using MOTHERCOLL as the instrument", row.names = FALSE)
+
+educ_ci_mother <- subset(iv_mother$table, term == "educ")[, c("estimate", "conf_low", "conf_high")]
+kable_num(educ_ci_mother, caption = "95% CI for the coefficient of EDUC using MOTHERCOLL", row.names = FALSE)
+```
+
+**Answer.** Using `MOTHERCOLL` as the instrument, the IV estimate of the return to education is about `r round(educ_ci_mother$estimate, 4)`. The 95% confidence interval is approximately [`r round(educ_ci_mother$conf_low, 4)`, `r round(educ_ci_mother$conf_high, 4)`].
+
+## 10.18(d)
+
+```{r mroz-d}
+fs_mother <- lm(educ ~ exper + exper2 + MOTHERCOLL, data = mroz_work)
+fs_mother_restricted <- lm(educ ~ exper + exper2, data = mroz_work)
+
+kable_num(coef(summary(fs_mother)), caption = "First-stage regression using MOTHERCOLL")
+
+F_mother <- joint_F(fs_mother_restricted, fs_mother, q = 1)
+kable_num(F_mother, caption = "First-stage F test for MOTHERCOLL")
+```
+
+**Answer.** The first-stage F statistic for `MOTHERCOLL` is about `r round(F_mother$F, 2)`. Since this is much larger than the common rule-of-thumb value 10, `MOTHERCOLL` appears to be a strong instrument.
+
+## 10.18(e)
+
+Now use both `MOTHERCOLL` and `FATHERCOLL` as excluded instruments.
+
+```{r mroz-e}
+Z_both_parents <- model.matrix(~ exper + exper2 + MOTHERCOLL + FATHERCOLL, data = mroz_work)
+iv_both_parents <- iv_2sls(y_mroz, X_mroz, Z_both_parents)
+
+kable_num(iv_both_parents$table, caption = "2SLS using MOTHERCOLL and FATHERCOLL as instruments", row.names = FALSE)
+
+educ_ci_both <- subset(iv_both_parents$table, term == "educ")[, c("estimate", "conf_low", "conf_high")]
+kable_num(educ_ci_both, caption = "95% CI for the coefficient of EDUC using both instruments", row.names = FALSE)
+
+ci_compare_mroz <- data.frame(
+  Method = c("MOTHERCOLL only", "MOTHERCOLL + FATHERCOLL"),
+  Estimate = c(educ_ci_mother$estimate, educ_ci_both$estimate),
+  Lower = c(educ_ci_mother$conf_low, educ_ci_both$conf_low),
+  Upper = c(educ_ci_mother$conf_high, educ_ci_both$conf_high),
+  Width = c(educ_ci_mother$conf_high - educ_ci_mother$conf_low,
+            educ_ci_both$conf_high - educ_ci_both$conf_low)
+)
+
+kable_num(ci_compare_mroz, caption = "Comparison of EDUC confidence intervals", row.names = FALSE)
+```
+
+**Answer.** With both instruments, the 95% confidence interval for `EDUC` is approximately [`r round(educ_ci_both$conf_low, 4)`, `r round(educ_ci_both$conf_high, 4)`]. This interval is narrower than the interval in part (c).
+
+## 10.18(f)
+
+```{r mroz-f}
+fs_both_parents <- lm(educ ~ exper + exper2 + MOTHERCOLL + FATHERCOLL, data = mroz_work)
+fs_both_restricted <- lm(educ ~ exper + exper2, data = mroz_work)
+
+kable_num(coef(summary(fs_both_parents)), caption = "First-stage regression using both parent college instruments")
+
+F_both_parents <- joint_F(fs_both_restricted, fs_both_parents, q = 2)
+kable_num(F_both_parents, caption = "Joint first-stage F test for MOTHERCOLL and FATHERCOLL")
+```
+
+**Answer.** The joint first-stage F statistic is about `r round(F_both_parents$F, 2)`. Therefore, the two instruments seem adequately strong.
+
+## 10.18(g)
+
+Since there are two excluded instruments for one endogenous regressor, there is one surplus instrument. We use a Sargan overidentification test.
+
+```{r mroz-g}
+Z_mroz_sargan <- data.frame(
+  exper = mroz_work$exper,
+  exper2 = mroz_work$exper2,
+  MOTHERCOLL = mroz_work$MOTHERCOLL,
+  FATHERCOLL = mroz_work$FATHERCOLL
+)
+
+sargan_mroz <- sargan_test(iv_both_parents$residuals, Z_mroz_sargan, df_overid = 1)
+kable_num(sargan_mroz, caption = "Sargan test for the surplus instrument")
+```
+
+**Answer.** The Sargan p-value is about `r round(sargan_mroz$p_value, 4)`. At the 5% level, we fail to reject the validity of the overidentifying restriction. This supports the surplus instrument, although it does not prove instrument exogeneity.
+
+# Exercise 10.20: CAPM data
+
+```{r read-capm}
+capm5 <- read.csv("capm5.csv")
+
+capm5$msftrf <- capm5$msft - capm5$riskfree
+capm5$mktrf <- capm5$mkt - capm5$riskfree
+
+nrow(capm5)
+```
+
+## 10.20(a)
+
+```{r capm-a}
+ols_capm <- lm(msftrf ~ mktrf, data = capm5)
+kable_num(coef(summary(ols_capm)), caption = "OLS CAPM estimate for Microsoft")
+```
+
+**Answer.** The OLS beta estimate is about `r round(coef(ols_capm)["mktrf"], 4)`. Since it is greater than one, Microsoft appears riskier than the market portfolio during this period.
+
+## 10.20(b)
+
+```{r capm-b}
+capm5$RANK <- rank(capm5$mktrf, ties.method = "first")
+
+fs_rank <- lm(mktrf ~ RANK, data = capm5)
+kable_num(coef(summary(fs_rank)), caption = "First-stage regression using RANK")
+
+fs_rank_summary <- data.frame(
+  R_squared = summary(fs_rank)$r.squared,
+  F_statistic = unname(summary(fs_rank)$fstatistic[1]),
+  p_value = pf(summary(fs_rank)$fstatistic[1],
+               summary(fs_rank)$fstatistic[2],
+               summary(fs_rank)$fstatistic[3],
+               lower.tail = FALSE)
+)
+kable_num(fs_rank_summary, caption = "First-stage strength using RANK", row.names = FALSE)
+```
+
+**Answer.** `RANK` is extremely significant in the first-stage regression, and the first-stage $R^2$ is about `r round(summary(fs_rank)$r.squared, 4)`. It is a strong predictor of the observed market risk premium. However, because `RANK` is constructed directly from the same measured market return, its exogeneity is questionable, so it may not satisfy all IV conditions.
+
+## 10.20(c)
+
+```{r capm-c}
+capm5$vhat_rank <- resid(fs_rank)
+aug_rank <- lm(msftrf ~ mktrf + vhat_rank, data = capm5)
+kable_num(coef(summary(aug_rank)), caption = "Augmented CAPM equation using first-stage residual from RANK")
+
+p_vhat_rank <- coef(summary(aug_rank))["vhat_rank", "Pr(>|t|)"]
+```
+
+**Answer.** The p-value for the first-stage residual is about `r round(p_vhat_rank, 4)`. At the 1% level, we fail to reject exogeneity of the market risk premium. This is not proof of exogeneity, but there is not enough evidence against it at 1%.
+
+## 10.20(d)
+
+```{r capm-d}
+y_capm <- capm5$msftrf
+X_capm <- model.matrix(~ mktrf, data = capm5)
+Z_rank <- model.matrix(~ RANK, data = capm5)
+
+iv_rank <- iv_2sls(y_capm, X_capm, Z_rank)
+kable_num(iv_rank$table, caption = "2SLS CAPM estimate using RANK as IV", row.names = FALSE)
+
+compare_rank_ols <- data.frame(
+  Method = c("OLS", "IV with RANK"),
+  Beta = c(coef(ols_capm)["mktrf"], subset(iv_rank$table, term == "mktrf")$estimate)
+)
+kable_num(compare_rank_ols, caption = "Comparison of OLS and IV beta estimates", row.names = FALSE)
+```
+
+**Answer.** The IV beta using `RANK` is about `r round(subset(iv_rank$table, term == "mktrf")$estimate, 4)`, which is larger than the OLS beta. This agrees with the usual measurement-error expectation that OLS may be attenuated toward zero.
+
+## 10.20(e)
+
+```{r capm-e}
+capm5$POS <- ifelse(capm5$mktrf > 0, 1, 0)
+
+fs_rank_pos <- lm(mktrf ~ RANK + POS, data = capm5)
+fs_rank_pos_restricted <- lm(mktrf ~ 1, data = capm5)
+
+kable_num(coef(summary(fs_rank_pos)), caption = "First-stage regression using RANK and POS")
+
+F_rank_pos <- joint_F(fs_rank_pos_restricted, fs_rank_pos, q = 2)
+kable_num(F_rank_pos, caption = "Joint first-stage F test for RANK and POS", row.names = FALSE)
+
+fs_rank_pos_summary <- data.frame(
+  R_squared = summary(fs_rank_pos)$r.squared
+)
+kable_num(fs_rank_pos_summary, caption = "First-stage R-squared using RANK and POS", row.names = FALSE)
+```
+
+**Answer.** The joint first-stage F statistic is about `r round(F_rank_pos$F, 2)`, and the first-stage $R^2$ is about `r round(summary(fs_rank_pos)$r.squared, 4)`. These instruments are jointly very strong in the first stage, although validity is still a separate issue.
+
+## 10.20(f)
+
+```{r capm-f}
+capm5$vhat_rank_pos <- resid(fs_rank_pos)
+aug_rank_pos <- lm(msftrf ~ mktrf + vhat_rank_pos, data = capm5)
+kable_num(coef(summary(aug_rank_pos)), caption = "Augmented CAPM equation using first-stage residual from RANK and POS")
+
+p_vhat_rank_pos <- coef(summary(aug_rank_pos))["vhat_rank_pos", "Pr(>|t|)"]
+```
+
+**Answer.** The p-value for the first-stage residual is about `r round(p_vhat_rank_pos, 4)`. At the 1% level, we fail to reject exogeneity of the market risk premium.
+
+## 10.20(g)
+
+```{r capm-g}
+Z_rank_pos <- model.matrix(~ RANK + POS, data = capm5)
+iv_rank_pos <- iv_2sls(y_capm, X_capm, Z_rank_pos)
+kable_num(iv_rank_pos$table, caption = "2SLS CAPM estimate using RANK and POS as IVs", row.names = FALSE)
+
+compare_rank_pos_ols <- data.frame(
+  Method = c("OLS", "IV with RANK and POS"),
+  Beta = c(coef(ols_capm)["mktrf"], subset(iv_rank_pos$table, term == "mktrf")$estimate)
+)
+kable_num(compare_rank_pos_ols, caption = "Comparison of OLS and IV beta estimates", row.names = FALSE)
+```
+
+**Answer.** The IV beta using `RANK` and `POS` is about `r round(subset(iv_rank_pos$table, term == "mktrf")$estimate, 4)`, again larger than the OLS beta. This is consistent with the measurement-error story.
+
+## 10.20(h)
+
+For the Sargan test, regress the IV residuals from part (g) on all instruments. The test statistic is $nR^2$, with degrees of freedom equal to the number of surplus instruments.
+
+```{r capm-h}
+Z_capm_sargan <- data.frame(
+  RANK = capm5$RANK,
+  POS = capm5$POS
+)
+
+sargan_capm <- sargan_test(iv_rank_pos$residuals, Z_capm_sargan, df_overid = 1)
+kable_num(sargan_capm, caption = "Sargan test for surplus IV validity", row.names = FALSE)
+```
+
+**Answer.** The Sargan p-value is about `r round(sargan_capm$p_value, 4)`. At the 5% level, we fail to reject the surplus IV validity condition.
