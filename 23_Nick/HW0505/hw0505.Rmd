@@ -1,0 +1,317 @@
+---
+title: "hw0505"
+author: ""
+date: ""
+output:
+  html_document:
+    toc: true
+    number_sections: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+round_df <- function(df, digits = 4) {
+  out <- df
+  num_cols <- sapply(out, is.numeric)
+  out[num_cols] <- lapply(out[num_cols], round, digits)
+  out
+}
+
+tidy_lm <- function(model) {
+  s <- summary(model)$coefficients
+  data.frame(
+    Term = rownames(s),
+    Estimate = s[, 1],
+    Std.Error = s[, 2],
+    t.value = s[, 3],
+    p.value = s[, 4],
+    row.names = NULL
+  )
+}
+
+wald_test_lm <- function(model, vars) {
+  b <- coef(model)
+  V <- vcov(model)
+  idx <- match(vars, names(b))
+  R <- matrix(0, nrow = length(vars), ncol = length(b))
+  for (i in seq_along(idx)) R[i, idx[i]] <- 1
+  q <- nrow(R)
+  W <- t(R %*% b) %*% solve(R %*% V %*% t(R)) %*% (R %*% b)
+  Fstat <- as.numeric(W / q)
+  pval <- pf(Fstat, df1 = q, df2 = df.residual(model), lower.tail = FALSE)
+  data.frame(F.statistic = Fstat, df1 = q, df2 = df.residual(model), p.value = pval)
+}
+
+iv_2sls <- function(y, X, Z, x_names = NULL) {
+  y <- as.matrix(y)
+  X <- as.matrix(X)
+  Z <- as.matrix(Z)
+  n <- nrow(X)
+  k <- ncol(X)
+  if (is.null(x_names)) x_names <- colnames(X)
+  if (is.null(x_names)) x_names <- paste0("x", seq_len(k))
+  Pz <- Z %*% solve(t(Z) %*% Z) %*% t(Z)
+  beta <- solve(t(X) %*% Pz %*% X, t(X) %*% Pz %*% y)
+  e <- y - X %*% beta
+  sigma2 <- as.numeric(t(e) %*% e / (n - k))
+  V <- sigma2 * solve(t(X) %*% Pz %*% X)
+  se <- sqrt(diag(V))
+  tval <- as.numeric(beta) / se
+  pval <- 2 * pt(abs(tval), df = n - k, lower.tail = FALSE)
+  coef_vec <- as.numeric(beta)
+  names(coef_vec) <- x_names
+  names(se) <- x_names
+  names(tval) <- x_names
+  names(pval) <- x_names
+  list(
+    coefficients = coef_vec,
+    se = se,
+    t = tval,
+    p = pval,
+    residuals = as.numeric(e),
+    fitted = as.numeric(X %*% beta),
+    vcov = V,
+    df = n - k,
+    n = n,
+    k = k,
+    x_names = x_names
+  )
+}
+
+tidy_iv <- function(model) {
+  data.frame(
+    Term = model$x_names,
+    Estimate = model$coefficients,
+    Std.Error = model$se,
+    t.value = model$t,
+    p.value = model$p,
+    row.names = NULL
+  )
+}
+
+sargan_test <- function(iv_model, Z) {
+  Z <- as.matrix(Z)
+  zdf <- as.data.frame(Z[, -1, drop = FALSE])
+  names(zdf) <- make.names(colnames(Z)[-1])
+  aux <- lm(iv_model$residuals ~ ., data = zdf)
+  J <- length(iv_model$residuals) * summary(aux)$r.squared
+  df_overid <- ncol(Z) - iv_model$k
+  pval <- pchisq(J, df = df_overid, lower.tail = FALSE)
+  data.frame(J.statistic = J, df = df_overid, p.value = pval)
+}
+```
+
+# Exercise 11.24: Fulton Fish Market
+
+```{r read-fulton}
+fish <- read.csv("fultonfish.csv")
+str(fish)
+```
+
+## 11.24(a)
+
+Estimate the reduced-form equation for `lprice` with `MIXED` added:
+
+```{r fulton-a}
+rf_price <- lm(lprice ~ mon + tue + wed + thu + stormy + mixed, data = fish)
+knitr::kable(round_df(tidy_lm(rf_price)), caption = "Reduced-form equation for ln(PRICE)")
+
+mixed_result <- tidy_lm(rf_price)[tidy_lm(rf_price)$Term == "mixed", ]
+knitr::kable(round_df(mixed_result), caption = "Significance of MIXED")
+
+joint_weather <- wald_test_lm(rf_price, c("stormy", "mixed"))
+knitr::kable(round_df(joint_weather), caption = "Joint F-test for STORMY and MIXED")
+```
+
+**Answer.** `MIXED` is positive and statistically significant at the 5% level. `STORMY` and `MIXED` are jointly significant, and the F-statistic is greater than 10. This suggests that the weather instruments are relevant for the demand equation.
+
+## 11.24(b)
+
+Estimate the demand equation using `STORMY` and `MIXED` as instrumental variables for `lprice`:
+
+```{r fulton-b}
+y_demand <- fish$lquan
+X_demand <- model.matrix(~ lprice + mon + tue + wed + thu, data = fish)
+Z_demand_two <- model.matrix(~ mon + tue + wed + thu + stormy + mixed, data = fish)
+Z_demand_one <- model.matrix(~ mon + tue + wed + thu + stormy, data = fish)
+
+iv_demand_two <- iv_2sls(y_demand, X_demand, Z_demand_two, colnames(X_demand))
+iv_demand_one <- iv_2sls(y_demand, X_demand, Z_demand_one, colnames(X_demand))
+
+iv_compare <- merge(
+  tidy_iv(iv_demand_one)[, c("Term", "Estimate")],
+  tidy_iv(iv_demand_two)[, c("Term", "Estimate")],
+  by = "Term",
+  suffixes = c("_Stormy_only", "_Stormy_Mixed")
+)
+
+knitr::kable(round_df(tidy_iv(iv_demand_two)), caption = "2SLS demand equation using STORMY and MIXED as IVs")
+knitr::kable(round_df(iv_compare), caption = "Comparison with the STORMY-only IV estimates")
+```
+
+**Answer.** The estimated price coefficient is still negative. Adding `MIXED` makes the price coefficient smaller in absolute value than the STORMY-only estimate, but the qualitative conclusion is unchanged: higher price is associated with lower quantity demanded.
+
+## 11.24(c)
+
+Since there are two excluded instruments and one endogenous variable, there is one overidentifying restriction. Use the Sargan test:
+
+```{r fulton-c}
+sargan_fulton <- sargan_test(iv_demand_two, Z_demand_two)
+knitr::kable(round_df(sargan_fulton), caption = "Sargan test for the surplus instrument")
+```
+
+**Answer.** The Sargan test does not reject the validity of the overidentifying restriction at the 5% level. Therefore, there is no strong evidence against the validity of the surplus instrument.
+
+## 11.24(d)
+
+Test the joint significance of the weekday indicators in the reduced-form price equation:
+
+```{r fulton-d}
+joint_days <- wald_test_lm(rf_price, c("mon", "tue", "wed", "thu"))
+knitr::kable(round_df(joint_days), caption = "Joint F-test for MON, TUE, WED, and THU")
+```
+
+**Answer.** The weekday indicators are not jointly significant at the 5% level. Thus, they do not appear to be strong demand shifters in the reduced-form price equation. We should not be very confident about estimating the supply equation by 2SLS using these weekday indicators as excluded instruments.
+
+# Exercise 11.28: Truffles
+
+```{r read-truffles}
+truffles <- read.csv("truffles.csv")
+str(truffles)
+```
+
+## 11.28(a)
+
+The inverse demand and inverse supply equations can be written as
+
+\[
+P = \alpha_1 + \alpha_2 Q + \alpha_3 PS + \alpha_4 DI + u_d
+\]
+
+and
+
+\[
+P = \beta_1 + \beta_2 Q + \beta_3 PF + u_s.
+\]
+
+**Answer.** For inverse demand, the expected signs are \(\alpha_2 < 0\), \(\alpha_3 > 0\), and \(\alpha_4 > 0\). For inverse supply, the expected signs are \(\beta_2 > 0\) and \(\beta_3 > 0\).
+
+## 11.28(b)
+
+Estimate the inverse demand and inverse supply equations using 2SLS. Quantity `q` is treated as endogenous. The exogenous variables `ps`, `di`, and `pf` are used as instruments.
+
+```{r truffles-b}
+y_price <- truffles$p
+Z_truf <- model.matrix(~ ps + di + pf, data = truffles)
+
+X_inv_demand <- model.matrix(~ q + ps + di, data = truffles)
+iv_inv_demand <- iv_2sls(y_price, X_inv_demand, Z_truf, colnames(X_inv_demand))
+
+X_inv_supply <- model.matrix(~ q + pf, data = truffles)
+iv_inv_supply <- iv_2sls(y_price, X_inv_supply, Z_truf, colnames(X_inv_supply))
+
+knitr::kable(round_df(tidy_iv(iv_inv_demand)), caption = "2SLS inverse demand equation")
+knitr::kable(round_df(tidy_iv(iv_inv_supply)), caption = "2SLS inverse supply equation")
+```
+
+**Answer.** The signs are correct. In the demand equation, the coefficient on `q` is negative, while the coefficients on `ps` and `di` are positive. In the supply equation, the coefficients on `q` and `pf` are positive. The main slope coefficients are statistically significant at the 5% level.
+
+## 11.28(c)
+
+For the inverse demand equation, \(dP/dQ\) is the coefficient on `q`. Therefore,
+
+\[
+\frac{dQ}{dP} = \frac{1}{dP/dQ},
+\quad
+\text{elasticity} = \frac{dQ}{dP}\frac{\bar P}{\bar Q}.
+\]
+
+```{r truffles-c}
+b_q_demand <- iv_inv_demand$coefficients["q"]
+mean_p <- mean(truffles$p)
+mean_q <- mean(truffles$q)
+elasticity_demand <- (1 / b_q_demand) * (mean_p / mean_q)
+
+elasticity_table <- data.frame(
+  Mean_P = mean_p,
+  Mean_Q = mean_q,
+  dP_dQ = b_q_demand,
+  Demand_Elasticity_at_Means = elasticity_demand
+)
+knitr::kable(round_df(elasticity_table), caption = "Demand elasticity at the means")
+```
+
+**Answer.** The estimated price elasticity of demand at the means is negative, as expected. Demand is elastic in magnitude if the absolute value is greater than one.
+
+## 11.28(d)
+
+Sketch the estimated inverse demand and inverse supply curves for \(DI^* = 3.5\), \(PS^* = 22\), and \(PF^* = 23\).
+
+```{r truffles-d, fig.width=7, fig.height=5}
+di_star <- 3.5
+ps_star <- 22
+pf_star <- 23
+
+bd <- iv_inv_demand$coefficients
+bs <- iv_inv_supply$coefficients
+
+q_eq <- (bs["(Intercept)"] + bs["pf"] * pf_star -
+           bd["(Intercept)"] - bd["ps"] * ps_star - bd["di"] * di_star) /
+        (bd["q"] - bs["q"])
+
+p_eq <- bd["(Intercept)"] + bd["q"] * q_eq + bd["ps"] * ps_star + bd["di"] * di_star
+
+q_grid <- seq(0, max(truffles$q) + 5, length.out = 200)
+p_demand <- bd["(Intercept)"] + bd["q"] * q_grid + bd["ps"] * ps_star + bd["di"] * di_star
+p_supply <- bs["(Intercept)"] + bs["q"] * q_grid + bs["pf"] * pf_star
+
+plot(q_grid, p_demand, type = "l", lwd = 2,
+     xlab = "Quantity Q", ylab = "Price P",
+     ylim = range(c(p_demand, p_supply, p_eq)),
+     main = "Estimated Inverse Demand and Supply")
+lines(q_grid, p_supply, lwd = 2, lty = 2)
+abline(v = q_eq, h = p_eq, lty = 3)
+points(q_eq, p_eq, pch = 19)
+legend("topright",
+       legend = c("Demand", "Supply", "Equilibrium"),
+       lty = c(1, 2, NA), pch = c(NA, NA, 19), lwd = c(2, 2, NA), bty = "n")
+```
+
+**Answer.** The demand curve slopes downward and the supply curve slopes upward. Their intersection gives the estimated market equilibrium for the chosen exogenous-variable values.
+
+## 11.28(e)
+
+Calculate the structural equilibrium and compare it with the reduced-form predictions.
+
+```{r truffles-e}
+rf_p <- lm(p ~ ps + di + pf, data = truffles)
+rf_q <- lm(q ~ ps + di + pf, data = truffles)
+new_x <- data.frame(ps = ps_star, di = di_star, pf = pf_star)
+
+p_rf <- as.numeric(predict(rf_p, newdata = new_x))
+q_rf <- as.numeric(predict(rf_q, newdata = new_x))
+
+eq_table <- data.frame(
+  Method = c("Structural 2SLS intersection", "Reduced-form prediction"),
+  P = c(p_eq, p_rf),
+  Q = c(q_eq, q_rf)
+)
+knitr::kable(round_df(eq_table), caption = "Equilibrium values from structural and reduced-form methods")
+```
+
+**Answer.** The structural intersection and the reduced-form predictions are very close. This is what we expect because both approaches are describing the same simultaneous-equation system.
+
+## 11.28(f)
+
+Estimate the same inverse demand and inverse supply equations by OLS.
+
+```{r truffles-f}
+ols_inv_demand <- lm(p ~ q + ps + di, data = truffles)
+ols_inv_supply <- lm(p ~ q + pf, data = truffles)
+
+knitr::kable(round_df(tidy_lm(ols_inv_demand)), caption = "OLS inverse demand equation")
+knitr::kable(round_df(tidy_lm(ols_inv_supply)), caption = "OLS inverse supply equation")
+```
+
+**Answer.** The OLS demand equation gives the wrong sign for the coefficient on `q`, and it is not statistically significant. The 2SLS demand estimate is more consistent with economic theory. For supply, OLS and 2SLS both give the correct positive signs, but the 2SLS estimate is preferable because it accounts for simultaneity.
