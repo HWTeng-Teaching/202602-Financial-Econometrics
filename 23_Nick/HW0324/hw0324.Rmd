@@ -1,0 +1,249 @@
+---
+title: "hw0324"
+author: ""
+date: ""
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.width = 7, fig.height = 4.5)
+options(scipen = 999, digits = 4)
+```
+
+4.25
+## Data and notation
+
+The variable `price` is interpreted as house price in thousands of dollars, and `sqft` is interpreted as hundreds of square feet. Therefore, a 2700-square-foot house has `sqft = 27`.
+
+```{r data}
+if (file.exists("collegetown.csv")) {
+  data_path <- "collegetown.csv"
+} else if (file.exists("/mnt/data/collegetown.csv")) {
+  data_path <- "/mnt/data/collegetown.csv"
+} else {
+  stop("Please put collegetown.csv in the same folder as this Rmd file.")
+}
+
+ct <- read.csv(data_path)
+names(ct) <- tolower(names(ct))
+
+head(ct)
+summary(ct[, c("price", "sqft")])
+```
+
+```{r helper-functions}
+# Jarque--Bera test implemented directly to avoid extra package dependencies.
+jb_test <- function(e) {
+  n <- length(e)
+  m <- mean(e)
+  m2 <- mean((e - m)^2)
+  m3 <- mean((e - m)^3)
+  m4 <- mean((e - m)^4)
+  skew <- m3 / (m2^(3/2))
+  kurt <- m4 / (m2^2)
+  jb <- n / 6 * (skew^2 + (kurt - 3)^2 / 4)
+  pval <- 1 - pchisq(jb, df = 2)
+  data.frame(skewness = skew, kurtosis = kurt, JB = jb, p.value = pval)
+}
+
+gen_r2 <- function(y, yhat_original_scale) {
+  cor(y, yhat_original_scale)^2
+}
+
+fmt <- function(x, digits = 4) formatC(x, digits = digits, format = "f")
+```
+
+## (a) Log-linear model
+
+Estimate
+\[
+\ln(PRICE_i)=\beta_1+\beta_2 SQFT_i+e_i.
+\]
+
+```{r model-a}
+m_a <- lm(log(price) ~ sqft, data = ct)
+summary(m_a)
+
+b1 <- coef(m_a)[["(Intercept)"]]
+b2 <- coef(m_a)[["sqft"]]
+price_bar <- mean(ct$price)
+sqft_bar <- mean(ct$sqft)
+
+# For log-linear model: dPRICE/dSQFT = beta2 * PRICE.
+a_slope_mean <- b2 * price_bar
+# Elasticity = beta2 * SQFT.
+a_elast_mean <- b2 * sqft_bar
+# Exact percentage change for one more unit of SQFT.
+a_exact_pct <- 100 * (exp(b2) - 1)
+a_approx_pct <- 100 * b2
+
+ans_a <- data.frame(
+  quantity = c("beta_1", "beta_2", "approx % change per 100 sq ft", "exact % change per 100 sq ft", "slope at sample means", "elasticity at sample means"),
+  value = c(b1, b2, a_approx_pct, a_exact_pct, a_slope_mean, a_elast_mean)
+)
+knitr::kable(ans_a, digits = 4)
+```
+
+**Answer.** The estimated equation is
+\[
+\widehat{\ln(PRICE)}=`r fmt(b1)`+`r fmt(b2)`SQFT.
+\]
+Since `SQFT` is measured in hundreds of square feet, one additional 100 square feet is associated with about `r fmt(a_approx_pct, 2)`% higher price, or `r fmt(a_exact_pct, 2)`% using the exact log interpretation. At the sample means, the slope is about `r fmt(a_slope_mean, 2)` thousand dollars per 100 square feet, and the elasticity is about `r fmt(a_elast_mean, 3)`.
+
+## (b) Log-log model
+
+Estimate
+\[
+\ln(PRICE_i)=\alpha_1+\alpha_2\ln(SQFT_i)+e_i.
+\]
+
+```{r model-b}
+m_b <- lm(log(price) ~ log(sqft), data = ct)
+summary(m_b)
+
+a1 <- coef(m_b)[["(Intercept)"]]
+a2 <- coef(m_b)[["log(sqft)"]]
+
+# For log-log model: alpha2 is the elasticity.
+b_elast <- a2
+# Slope at means: dPRICE/dSQFT = alpha2 * PRICE/SQFT.
+b_slope_mean <- a2 * price_bar / sqft_bar
+
+ans_b <- data.frame(
+  quantity = c("alpha_1", "alpha_2 / elasticity", "slope at sample means"),
+  value = c(a1, a2, b_slope_mean)
+)
+knitr::kable(ans_b, digits = 4)
+```
+
+**Answer.** The estimated equation is
+\[
+\widehat{\ln(PRICE)}=`r fmt(a1)`+`r fmt(a2)`\ln(SQFT).
+\]
+The coefficient `r fmt(a2, 3)` is an elasticity: a 1% increase in square footage is associated with about a `r fmt(a2, 3)`% increase in price. At the sample means, the slope is about `r fmt(b_slope_mean, 2)` thousand dollars per 100 square feet.
+
+## (c) Linear model and generalized $R^2$
+
+Estimate the linear model
+\[
+PRICE_i=\delta_1+\delta_2 SQFT_i+e_i.
+\]
+
+For the log models, I use the generalized $R^2$ defined as
+\[
+R_g^2=\left[\text{corr}(PRICE,\widehat{PRICE})\right]^2,
+\]
+where the log-model fitted values are transformed back to the original price scale.
+
+```{r model-c-r2}
+m_c <- lm(price ~ sqft, data = ct)
+summary(m_c)
+
+d1 <- coef(m_c)[["(Intercept)"]]
+d2 <- coef(m_c)[["sqft"]]
+
+c_slope <- d2
+c_elast_mean <- d2 * sqft_bar / price_bar
+
+r2_linear <- summary(m_c)$r.squared
+r2_gen_a <- gen_r2(ct$price, exp(fitted(m_a)))
+r2_gen_b <- gen_r2(ct$price, exp(fitted(m_b)))
+
+r2_table <- data.frame(
+  model = c("Linear: price ~ sqft", "Log-linear: log(price) ~ sqft", "Log-log: log(price) ~ log(sqft)"),
+  R2_type = c("ordinary R2", "generalized R2", "generalized R2"),
+  R2 = c(r2_linear, r2_gen_a, r2_gen_b)
+)
+knitr::kable(r2_table, digits = 4)
+
+linear_effect_table <- data.frame(
+  quantity = c("delta_1", "delta_2 / slope", "elasticity at sample means"),
+  value = c(d1, d2, c_elast_mean)
+)
+knitr::kable(linear_effect_table, digits = 4)
+```
+
+**Answer.** The linear model gives an ordinary $R^2$ of `r fmt(r2_linear)`. The generalized $R^2$ values are `r fmt(r2_gen_a)` for the log-linear model and `r fmt(r2_gen_b)` for the log-log model. Based only on this criterion, the log-linear model fits slightly better on the original price scale, although the differences are not large.
+
+## (d) Histograms and Jarque--Bera tests
+
+```{r histograms-jb, fig.height=8}
+par(mfrow = c(3, 1), mar = c(4, 4, 3, 1))
+hist(resid(m_a), breaks = 25, main = "Log-linear residuals", xlab = "Residual")
+hist(resid(m_b), breaks = 25, main = "Log-log residuals", xlab = "Residual")
+hist(resid(m_c), breaks = 25, main = "Linear residuals", xlab = "Residual")
+par(mfrow = c(1, 1))
+
+jb_table <- rbind(
+  `Log-linear` = jb_test(resid(m_a)),
+  `Log-log` = jb_test(resid(m_b)),
+  `Linear` = jb_test(resid(m_c))
+)
+knitr::kable(jb_table, digits = 4)
+```
+
+**Answer.** The Jarque--Bera p-values are small for all three models, so the residuals are not fully compatible with normality under a formal test. The linear model has the strongest non-normality, while the log-log model looks the closest to normal among the three.
+
+## (e) Residuals against `SQFT`
+
+```{r residual-plots, fig.height=8}
+par(mfrow = c(3, 1), mar = c(4, 4, 3, 1))
+plot(ct$sqft, resid(m_a), pch = 19, cex = 0.6,
+     main = "Log-linear residuals vs SQFT", xlab = "SQFT", ylab = "Residual")
+abline(h = 0, lty = 2)
+plot(ct$sqft, resid(m_b), pch = 19, cex = 0.6,
+     main = "Log-log residuals vs SQFT", xlab = "SQFT", ylab = "Residual")
+abline(h = 0, lty = 2)
+plot(ct$sqft, resid(m_c), pch = 19, cex = 0.6,
+     main = "Linear residuals vs SQFT", xlab = "SQFT", ylab = "Residual")
+abline(h = 0, lty = 2)
+par(mfrow = c(1, 1))
+```
+
+**Answer.** The linear model shows a clear pattern and larger dispersion for large houses, suggesting heteroskedasticity and possible functional-form problems. The log models reduce this problem. The log-linear model has a relatively flatter residual pattern, while the log-log model shows a mild curved pattern.
+
+## (f) Prediction for a 2700-square-foot house
+
+Because `sqft` is measured in hundreds of square feet, use `sqft = 27`.
+
+```{r predictions}
+new_house <- data.frame(sqft = 27)
+
+pred_a_log <- predict(m_a, newdata = new_house)
+pred_b_log <- predict(m_b, newdata = new_house)
+pred_c <- predict(m_c, newdata = new_house)
+
+pred_table <- data.frame(
+  model = c("Log-linear", "Log-log", "Linear"),
+  predicted_price_thousand = c(exp(pred_a_log), exp(pred_b_log), pred_c)
+)
+knitr::kable(pred_table, digits = 3)
+```
+
+**Answer.** The predicted prices for a 2700-square-foot house are shown in the table above. The predictions are in thousands of dollars.
+
+## (g) 95% prediction intervals for a 2700-square-foot house
+
+```{r prediction-intervals}
+pi_a_log <- predict(m_a, newdata = new_house, interval = "prediction", level = 0.95)
+pi_b_log <- predict(m_b, newdata = new_house, interval = "prediction", level = 0.95)
+pi_c <- predict(m_c, newdata = new_house, interval = "prediction", level = 0.95)
+
+pi_table <- data.frame(
+  model = c("Log-linear", "Log-log", "Linear"),
+  fit = c(exp(pi_a_log[, "fit"]), exp(pi_b_log[, "fit"]), pi_c[, "fit"]),
+  lower_95_PI = c(exp(pi_a_log[, "lwr"]), exp(pi_b_log[, "lwr"]), pi_c[, "lwr"]),
+  upper_95_PI = c(exp(pi_a_log[, "upr"]), exp(pi_b_log[, "upr"]), pi_c[, "upr"])
+)
+knitr::kable(pi_table, digits = 3)
+```
+
+**Answer.** The prediction intervals are in thousands of dollars. For the log models, the intervals are first computed on the log-price scale and then exponentiated back to the price scale.
+
+## (h) Choice of functional form
+
+**Answer.** I would use the log-linear model as the main specification. It has the highest generalized $R^2$ on the original price scale, and its residual plot against `SQFT` shows less systematic curvature than the log-log model and much less pattern than the linear model. However, the Jarque--Bera tests reject normality for all models, so any inference based on exact residual normality should be interpreted with caution.
