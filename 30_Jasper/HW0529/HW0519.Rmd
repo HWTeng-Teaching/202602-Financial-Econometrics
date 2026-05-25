@@ -1,0 +1,206 @@
+15.20
+```{r}
+required_packages <- c("plm", "lmtest", "sandwich", "car")
+new_packages <- required_packages[!(required_packages %in% installed.packages()[, "Package"])]
+if(length(new_packages)) install.packages(new_packages)
+
+library(plm)
+library(lmtest)
+library(sandwich)
+library(car)
+```
+```{r}
+url <- "https://www.principlesofeconometrics.com/poe5/data/rdata/star.rdata"
+con <- url(url)
+load(con)
+close(con)
+
+head(star)
+
+names(star)[names(star) == "id"] <- "student_id"
+
+fml <- readscore ~ small + aide + tchexper + boy + white_asian + freelunch
+
+p_star <- pdata.frame(
+  star,
+  index = c("schid", "student_id"),
+  drop.index = FALSE
+)
+
+cat("=== Panel 資料結構檢查 ===\n")
+print(head(attr(p_star, "index")))
+```
+(a)
+```{r}
+cat("\n=== (a) OLS 迴歸模型估計結果 ===\n")
+
+model_a <- lm(fml, data = star)
+print(summary(model_a))
+```
+(b)
+```{r}
+cat("\n=== (b) 學校固定效果模型估計結果 ===\n")
+
+model_b <- plm(
+  fml,
+  data = p_star,
+  model = "within",
+  effect = "individual"
+)
+
+print(summary(model_b))
+```
+(c)
+```{r}
+cat("\n=== (c) 學校固定效果之顯著性檢定 F-test ===\n")
+
+# 建立 plm pooling model
+model_pool <- plm(
+  fml,
+  data = p_star,
+  model = "pooling"
+)
+
+joint_test <- pFtest(model_b, model_pool)
+print(joint_test)
+```
+(d)
+```{r}
+cat("\n=== (d) 學校隨機效果模型估計結果 ===\n")
+
+model_d <- plm(
+  fml,
+  data = p_star,
+  model = "random",
+  random.method = "swar",
+  effect = "individual"
+)
+
+print(summary(model_d))
+
+cat("\n=== (d) Breusch-Pagan LM Test for Random Effects ===\n")
+
+# LM test 應該用 pooled model
+lm_test <- plmtest(
+  model_pool,
+  type = "bp",
+  effect = "individual"
+)
+
+print(lm_test)
+```
+(e)
+```{r}
+cat("\n=== (e) 各變數之 FE vs RE t 檢定 ===\n")
+
+vars_e <- c("small", "aide", "tchexper", "white_asian", "freelunch")
+
+hausman_t_test <- function(fe_model, re_model, variables) {
+  
+  b_fe <- coef(fe_model)[variables]
+  b_re <- coef(re_model)[variables]
+  
+  v_fe <- diag(vcov(fe_model))[variables]
+  v_re <- diag(vcov(re_model))[variables]
+  
+  var_diff <- v_fe - v_re
+  
+  se_diff <- ifelse(var_diff > 0, sqrt(var_diff), NA)
+  t_stat <- (b_fe - b_re) / se_diff
+  p_value <- 2 * (1 - pnorm(abs(t_stat)))
+  
+  result <- data.frame(
+    Variable = variables,
+    Beta_FE = as.numeric(b_fe),
+    Beta_RE = as.numeric(b_re),
+    Difference = as.numeric(b_fe - b_re),
+    Var_FE_minus_Var_RE = as.numeric(var_diff),
+    t_stat = as.numeric(t_stat),
+    p_value = as.numeric(p_value)
+  )
+  
+  return(result)
+}
+
+hausman_t_summary <- hausman_t_test(model_b, model_d, vars_e)
+
+hausman_t_summary_print <- hausman_t_summary
+
+num_cols <- sapply(hausman_t_summary_print, is.numeric)
+hausman_t_summary_print[num_cols] <- lapply(
+  hausman_t_summary_print[num_cols],
+  round,
+  5
+)
+
+print(hausman_t_summary_print)
+
+
+cat("\n=== (e) 補充：將同樣檢定套用在 BOY ===\n")
+
+boy_test <- hausman_t_test(model_b, model_d, "boy")
+boy_test_print <- boy_test
+
+num_cols <- sapply(boy_test_print, is.numeric)
+boy_test_print[num_cols] <- lapply(
+  boy_test_print[num_cols],
+  round,
+  5
+)
+
+print(boy_test_print)
+
+
+cat("\n=== (e) 補充：phtest 聯合檢定，若矩陣奇異可忽略 ===\n")
+
+hausman_joint <- tryCatch(
+  phtest(model_b, model_d),
+  error = function(e) e
+)
+
+print(hausman_joint)
+```
+(f)
+```{r}
+cat("\n=== (f) Mundlak Test ===\n")
+
+# 建立 school averages
+star$mean_small       <- ave(star$small,       star$schid, FUN = mean)
+star$mean_aide        <- ave(star$aide,        star$schid, FUN = mean)
+star$mean_tchexper    <- ave(star$tchexper,    star$schid, FUN = mean)
+star$mean_boy         <- ave(star$boy,         star$schid, FUN = mean)
+star$mean_white_asian <- ave(star$white_asian, star$schid, FUN = mean)
+star$mean_freelunch   <- ave(star$freelunch,   star$schid, FUN = mean)
+
+mundlak_fml <- readscore ~ small + aide + tchexper + boy + white_asian + freelunch +
+  mean_small + mean_aide + mean_tchexper +
+  mean_boy + mean_white_asian + mean_freelunch
+
+# Regression-based Mundlak model
+mundlak <- lm(mundlak_fml, data = star)
+
+# 使用 school-clustered robust standard errors
+robust_vcov <- vcovCL(mundlak, cluster = ~ schid)
+
+cat("\n--- Mundlak 迴歸估計結果，使用 school-clustered robust SE ---\n")
+print(coeftest(mundlak, vcov = robust_vcov))
+
+
+cat("\n=== (f) Mundlak Wald Test ===\n")
+
+mundlak_wald <- linearHypothesis(
+  mundlak,
+  c(
+    "mean_small = 0",
+    "mean_aide = 0",
+    "mean_tchexper = 0",
+    "mean_boy = 0",
+    "mean_white_asian = 0",
+    "mean_freelunch = 0"
+  ),
+  vcov = robust_vcov
+)
+
+print(mundlak_wald)
+```
+
