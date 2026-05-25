@@ -1,0 +1,166 @@
+---
+title: "HW0519"
+output: html_document
+date: "2026-05-25"
+---
+## 15.6
+
+# a.
+Comparison：The OLS estimates for 1987 (Column 1) and 1988 (Column 2) are remarkably similar. For instance, the coefficients for $EXPER$ are 0.1270 and 0.1265, respectively.Assumptions on Heterogeneity：By using a standard cross-sectional OLS regression, we implicitly assume that there is no unobserved individual heterogeneity (e.g., innate ability, motivation), or that such unobserved traits are completely uncorrelated with the explanatory variables like experience. OLS treats all individuals as essentially identical except for the observed characteristics
+
+# b.
+The specified panel data regression explicitly defines the error term as $(u_i + e_{it})$.
+Assumption Differences：Unlike the OLS model in part (a), this specification acknowledges that individuals are inherently different. It splits the unobserved factors into two components:
+$u_i$ (Individual Effect)：Time-invariant, unobserved individual characteristics (like innate intelligence).
+$e_{it}$ (Idiosyncratic Error)：Purely random, time-varying shocks.
+This structure allows us to explicitly control for unobserved heterogeneity (using FE or RE estimators) rather than ignoring it, which prevents omitted variable bias.
+
+# c.
+Most Substantial Differences：Apart from the intercept, the coefficients for $EXPER$ and $EXPER^2$ show the most dramatic changes.
+The coefficient for $EXPER$ drops from approximately 0.127 in OLS to 0.0575 in the FE model. This indicates that OLS suffers from omitted variable bias. The OLS model incorrectly attributed the wage premium of high "innate ability" to "work experience". By removing the individual fixed effects ($u_i$), the FE model isolates the true, smaller marginal effect of experience.
+
+# d.
+Given：The F-statistic is 11.68. The null hypothesis $H_0$ assumes no individual fixed effects (everyone is identical).
+Degrees of Freedom (df)：
+Numerator $df_1 = N - 1 = 716 - 1 = \mathbf{715}$.
+Denominator $df_2 = NT - N - K$ (where $K$ is the number of regressors: EXPER, EXPER², SOUTH, UNION).
+Calculation: $1432 - 716 - 4 = \mathbf{712}$.
+Critical Value & Conclusion：The 1% critical value for $F(715, 712)$ is approximately 1.13. Since 11.68 > 1.13, we strongly reject the null hypothesis. 
+Conclusion: Unobserved individual differences are highly significant; pooled OLS is inappropriate.
+
+# e.
+The standard FE (Column 3) assumes homoskedasticity and no serial correlation. The cluster-robust FE (Column 4) relaxes these assumptions, allowing for heteroskedasticity and intra-cluster correlation (meaning an individual's error in 1987 can be correlated with her error in 1988).
+Most Substantial Difference：The standard error for $SOUTH$ shows the largest difference, nearly doubling from 0.1258 to 0.2495.
+Robust standard errors are generally larger. Variables like $SOUTH$ barely change over two years. The standard FE model ignores this intra-group correlation and becomes overly confident (producing small SEs). The robust estimation accounts for this lack of "truly independent" information, resulting in larger, more conservative standard errors.
+
+# f.
+Comparing RE(5) and FE(3)：The coefficient for $EXPER$ again shows the most significant difference (0.0986 vs. 0.0575).
+Executing the Hausman Test：
+Null Hypothesis $H_0$：The RE estimator is consistent (meaning the unobserved individual effect $u_i$ is strictly uncorrelated with the regressors $X$).
+Given test statistic = 15.36. Degrees of freedom = number of regressors $K = \mathbf{4}$.
+The critical value for a $\chi^2$ distribution with 4 df is 9.488 at 5% and 13.277 at 1%.
+Conclusion & Model Choice：Since 15.36 > 13.277, we reject the null hypothesis at the 1% significance level. This implies that unobserved heterogeneity ($u_i$) is indeed correlated with the explanatory variables, rendering the RE model biased and inconsistent. Therefore, the Fixed Effects (FE) model is the appropriate and reliable choice.
+
+
+## 15.20
+```{r}
+#install.packages("plm")
+library(plm)      
+library(lmtest)  
+library(car)     
+library(dplyr)
+library(PoEdata)
+data("star", package = "PoEdata")
+star_clean <- star %>%
+  rename(student_id = id)
+pdata_star <- pdata.frame(star_clean, index = c("schid", "student_id"))
+
+```
+
+
+# a.
+```{r}
+ols_model <- plm(readscore ~ small + aide + tchexper + boy + white_asian + freelunch, 
+                 data = pdata_star, model = "pooling")
+cat("--- (a) Pooled OLS Model ---\n")
+summary(ols_model)
+```
+Do students perform better in reading when they are in small classes?
+Yes. The coefficient for small is 5.82 and is highly significant (p-value = 4.19e-09). Holding other factors constant, students randomly assigned to small classes score about 5.82 points higher on the reading test than those in regular classes.
+
+Does a teacher's aide improve scores?
+No, not significantly. The coefficient for aide is positive (0.817) but statistically insignificant (p-value = 0.3908 > 0.05). We cannot conclude that having a teacher's aide meaningfully improves reading scores.
+
+Do the students of more experienced teachers score higher on reading tests?
+Yes. The coefficient for tchexper is 0.492 and highly significant. For every additional year of a teacher's experience, a student's reading score increases by approximately 0.49 points on average.
+
+Does the student's sex or race make a difference?
+Yes, both make a significant difference.
+
+Sex: The coefficient for boy is -6.15 (highly significant), indicating that boys score, on average, 6.15 points lower than girls in reading.
+Race: The coefficient for white_asian is 3.90 (highly significant), showing that White and Asian students score about 3.9 points higher than students of other races.
+
+
+# b.
+```{r}
+fe_model <- plm(readscore ~ small + aide + tchexper + boy + white_asian + freelunch, 
+                data = pdata_star, model = "within")
+cat("\n--- (b) Fixed Effects (FE) Model ---\n")
+summary(fe_model)
+```
+The signs and statistical significance of all variables (with aide remaining insignificant) are the same as in the Pooled OLS model from part (a).
+
+However, the magnitudes of the coefficients have changed considerably.
+
+1.The dramatic shift in Race (white_asian):
+In the Pooled OLS, the premium was 3.90.
+In the FE model, it skyrockets to 8.02.
+
+2.The downward revision of Teacher Experience (tchexper):
+OLS coefficient was 0.492, but FE reduced it to 0.285.
+
+3.The stronger effect of Small Classes (small):
+OLS was 5.82, FE increased to 6.49.
+
+# c.
+```{r}
+cat("\n--- (c) F-test for School Fixed Effects ---\n")
+pFtest(fe_model, ols_model)
+```
+$H_0$: All school-specific fixed effects are zero (i.e., there is no unobserved heterogeneity across schools; Pooled OLS is appropriate).
+$H_1$: Significant school effects exist (FE model is appropriate).
+Data Interpretation: The F-statistic is 16.698 with $df_1 = 78$ (79 schools minus 1) and $df_2 = 5681$. The p-value is < 2.2e-16 (virtually zero).
+Conclusion: Because the p-value is extremely small ($p < 0.05$), we strongly reject the null hypothesis. This confirms that unobserved school-level heterogeneity is highly significant. The Pooled OLS model from part (a) is definitively inappropriate for this data.
+
+ The inclusion of significant fixed effects would have little influence on the coefficient estimates only if the unobserved school effects ($u_i$) are strictly uncorrelated with the explanatory variables ($X_{it}$) in the model (i.e., $Cov(u_i, X_{it}) = 0$).
+
+# d.
+```{r}
+re_model <- plm(readscore ~ small + aide + tchexper + boy + white_asian + freelunch, 
+                data = pdata_star, model = "random")
+cat("\n--- (d) Random Effects (RE) Model ---\n")
+summary(re_model)
+
+cat("\n--- (d) Breusch-Pagan LM Test for Random Effects ---\n")
+plmtest(ols_model, type = "bp")
+```
+For white_asian: OLS (3.90) < RE (7.35) < FE (8.02).
+For tchexper: FE (0.285) < RE (0.302) < OLS (0.492).
+ Mathematically, the RE estimator is a weighted average of the within estimator (FE) and the between estimator. Because the RE estimator assumes that the unobserved school effect ($u_i$) is uncorrelated with the regressors, when this assumption is violated, the RE estimates are "dragged" toward the biased OLS estimates.
+
+The noticeable differences between the FE and RE estimates for variables like white_asian and tchexper strongly imply that racial demographics and teacher sorting are highly correlated with unobserved school resources ($u_i$).
+
+$H_0$: There is no random variance across schools (i.e., the variance of the unobserved school effect $\sigma_u^2 = 0$). If $H_0$ holds, Pooled OLS is sufficient.
+Data Interpretation: The output shows a chi-squared value $\chi^2 = 6677.4$ with a p-value < 2.2e-16 (virtually zero).
+Conclusion: Because the p-value is extremely small ($p < 0.05$), we strongly reject the null hypothesis. This proves that significant variance exists across schools (random effects are present). The data has a strong grouped structure, and Pooled OLS is completely inappropriate.
+
+
+# e.
+```{r}
+cat("\n--- (e) Hausman Test ---\n")
+phtest(fe_model, re_model)
+```
+$H_0$: The Random Effects (RE) estimator is consistent (meaning the unobserved school-specific effect $u_i$ is strictly uncorrelated with the explanatory variables $X$).
+Data Interpretation: The output yields a test statistic chisq = 13.809 with a p-value = 0.03184.Conclusion: At a 5% significance level ($\alpha = 0.05$), since $0.03184 < 0.05$, we reject the null hypothesis.
+Implications: This confirms that the RE assumption is violated. The differences we observed between the FE and RE estimates (especially for race and teacher experience) are statistically significant. Because unobserved school heterogeneity is correlated with the regressors, the RE estimates are biased and inconsistent. Consequently, we must abandon RE and rely on the Fixed Effects (FE) model for our final conclusions.
+
+If we applied the Hausman t-test solely to the fixed and random effects estimates of the BOY coefficient, the test would fail to reject the null hypothesis (it would be insignificant).The Reasoning: Endogeneity arises when variables like student poverty or teacher sorting are correlated with neighborhood wealth (unobserved school effects $u_i$). However, gender is biologically random. A school district's wealth or quality does not influence the natural gender ratio of its students.
+Because BOY is strictly uncorrelated with the unobserved school fixed effect ($Cov(u_i, boy) = 0$), both FE and RE estimators will yield nearly identical, consistent estimates for this specific variable (as seen in your previous outputs: FE was -5.45 and RE was -5.51).
+
+
+# f.
+```{r}
+fe_model <- plm(readscore ~ small + aide + tchexper + boy + white_asian + freelunch, 
+                data = pdata_star, model = "within")
+re_model <- plm(readscore ~ small + aide + tchexper + boy + white_asian + freelunch, 
+                data = pdata_star, model = "random")
+
+
+cat("\n--- (f) Mundlak Test (Auxiliary Regression Approach) ---\n")
+mundlak_test <- phtest(readscore ~ small + aide + tchexper + boy + white_asian + freelunch, 
+                       data = pdata_star, method = "aux")
+print(mundlak_test)
+```
+$H_0$: One model is inconsistent, specifically testing that the RE estimator is consistent (i.e., the regressors are strictly uncorrelated with the unobserved school effects, $Cov(X, u_i) = 0$).
+Data Interpretation: The output displays a chi-squared value chisq = 1315.7 with 6 degrees of freedom, and a p-value < 2.2e-16 (virtually zero).
+Conclusion: Because the p-value is practically zero ($p < 0.05$), we overwhelmingly reject the null hypothesis. This provides an unambiguous statistical verdict: severe endogeneity is present in the data structure.
