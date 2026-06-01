@@ -1,0 +1,154 @@
+---
+title: "HW0526"
+output: html_document
+date: "2026-05-31"
+---
+# 16.18
+
+```{r}
+library(PoEdata)
+library(lmtest)    # 假設檢定
+library(sandwich)  # 穩健標準誤計算
+data("lasvegas", package = "PoEdata")
+eq <- delinquent ~ lvr + ref + insur + rate + amount + credit + term + arm
+```
+
+
+# a.
+```{r}
+cat("\n--- (a) Linear Probability Model (LPM) ---\n")
+lpm_model <- lm(eq, data = lasvegas)
+
+# 使用 White 異質變異穩健標準誤 (HC1 為 Stata 預設，較常用)
+lpm_robust <- coeftest(lpm_model, vcov = vcovHC(lpm_model, type = "HC1"))
+print(lpm_robust)
+```
+lvr (貸款價值比): 為正LVR 越高代表借款人自有資金越少，違約風險越高
+credit (信用分數): 為負，信用分數越高，違約機率越低
+rate (初始利率): 為正，利率越高，還款壓力越大，越容易違約
+
+# b.
+```{r}
+cat("\n--- (b) Logit Model ---\n")
+logit_model <- glm(eq, data = lasvegas, family = binomial(link = "logit"))
+summary(logit_model)
+```
+Logit 模型估計出的係數正負號（Signs）與顯著性（Significance/p-value）會與 (a) 小題的 LPM 一致
+但在 Logit 模型中，lvr (p=0.099) 和 credit (p=0.065) 的 p-value 變大了，它們在 5% 水準下變成了不顯著，只能在 10% 的水準下勉強顯著（報表上標示為 .）這顯示 Logit 模型對於這兩個變數的估計較為保守
+
+# c.
+```{r}
+cat("\n--- (c) Predictions for 500th and 1000th observations ---\n")
+obs_to_predict <- lasvegas[c(500, 1000), ]
+
+# LPM 預測
+lpm_pred_c <- predict(lpm_model, newdata = obs_to_predict)
+cat("LPM Predictions:\n"); print(lpm_pred_c)
+
+# Logit 預測 (加上 type="response" 才會輸出機率，否則會輸出 Z 值)
+logit_pred_c <- predict(logit_model, newdata = obs_to_predict, type = "response")
+cat("Logit Predictions:\n"); print(logit_pred_c)
+```
+兩個模型在「方向性」上的判斷是一致的：第 1000 位借款人的違約風險遠高於第 500 位
+當機率落在中間區域（例如 $0.2 \sim 0.8$ 之間）時，LPM 和 Logit 算出來的數字通常會蠻接近的。
+可以微幅觀察到 Logit 的特性：對於相對安全的客戶（第500筆），Logit 給的機率比 LPM 更低；對於高風險客戶（第1000筆），Logit 給的機率比 LPM 更高
+Logit 比較容易將機率推向兩端
+
+
+
+# d.
+```{r}
+hist(lasvegas$credit, main="Histogram of CREDIT", xlab="Credit Score")
+
+cat("\n--- (d) Probabilities for CREDIT = 500, 600, 700 ---\n")
+# 建立情境資料集
+scenario_d <- data.frame(
+  credit = c(500, 600, 700),
+  amount = 2.5, lvr = 80, rate = 8, 
+  insur = 0, ref = 0, arm = 0, term = 30
+)
+
+# 預測機率
+prob_lpm_d <- predict(lpm_model, newdata = scenario_d)
+prob_logit_d <- predict(logit_model, newdata = scenario_d, type = "response")
+
+results_d <- data.frame(CREDIT = c(500, 600, 700), LPM_Prob = prob_lpm_d, Logit_Prob = prob_logit_d)
+print(results_d)
+```
+LPM 機率：0.553 (分) $\rightarrow$ 0.509 (600分) $\rightarrow$ 0.465 (700分)
+每增加 100 分，機率固定下降約 0.044 (4.4%)
+Logit 機率：0.497 (500分) $\rightarrow$ 0.409 (600分) $\rightarrow$ 0.326 (700分)
+下降幅度是變動的（先降 0.088，再降 0.083）
+兩者都顯示「信用分數越高，違約機率越低」
+最大的差異在於形狀：LPM 是一條直線，所以分數每進步 100 分，機率下降的幅度是「等差」的
+但 Logit 模型是一條 S 型曲線，它捕捉到了非線性關係。因為在 500 分時，預測機率（0.497）最接近0.5（曲線最陡峭的地方），所以此時分數提升帶來的機率降幅最大
+
+
+# e.
+```{r}
+cat("\n--- (e) Marginal Effect of CREDIT ---\n")
+# LPM 的邊際效應永遠是固定的 (即 credit 的迴歸係數)
+me_lpm <- coef(lpm_model)["credit"]
+
+# Logit 的邊際效應會隨條件改變: ME = P * (1 - P) * Beta
+beta_credit_logit <- coef(logit_model)["credit"]
+me_logit_d <- prob_logit_d * (1 - prob_logit_d) * beta_credit_logit
+
+results_e <- data.frame(CREDIT = c(500, 600, 700), LPM_ME = rep(me_lpm, 3), Logit_ME = me_logit_d)
+print(results_e)
+```
+
+LPM 的邊際效應在任何分數下都是一個常數，意味著不管信用是極差的 300 分，還是極好的 800 分，進步 1 分的效果永遠一樣，這不符合現實
+
+Logit 的邊際效應是動態的。信用極差（500）或極好（700）時，邊際效應通常較小；而在臨界邊緣（例如機率靠近 0.5 附近）時，邊際效應最大，這反映了現實：對於信用已經很好的人，再增加一點分數，對降低違約機率的幫助已經很有限了
+當信用分數為 500 分時（機率 $P \approx 0.5$），$P(1-P)$ 的變異數達到最大值，因此邊際效應的絕對值最大（-0.000891），當分數提升到 700 分，客戶已經相對安全時，再加 1 分的邊際效應就衰退了（-0.000783）
+
+# f.
+```{r}
+hist(lasvegas$lvr, main="Histogram of LVR", xlab="Loan-to-Value Ratio")
+
+cat("\n--- (f) Probabilities for LVR = 20, 80 ---\n")
+scenario_f <- data.frame(
+  lvr = c(20, 80),
+  credit = 600, amount = 2.5, rate = 8, 
+  insur = 0, ref = 0, arm = 0, term = 30
+)
+
+prob_lpm_f <- predict(lpm_model, newdata = scenario_f)
+prob_logit_f <- predict(logit_model, newdata = scenario_f, type = "response")
+
+results_f <- data.frame(LVR = c(20, 80), LPM_Prob = prob_lpm_f, Logit_Prob = prob_logit_f)
+print(results_f)
+```
+
+LVR = 20 是一個極端的例子（代表借款人自己出了 80% 的頭期款，貸款成數極低）
+在這種極端情況下，違約機率應該較小
+但LPM 的預測機率只下降到了 41.1%，這依然是個偏高的違約機率
+而Logit 模型因為具備 S 型的尾部特徵，它對這種極端條件的反應更為劇烈且合理，預測機率大幅下修到了 23.4%
+
+
+# g.
+```{r}
+cat("\n--- (g) Percentage of Correct Predictions (Threshold = 0.5) ---\n")
+# 取得全樣本預測機率
+all_lpm_pred <- predict(lpm_model, newdata = lasvegas)
+all_logit_pred <- predict(logit_model, newdata = lasvegas, type = "response")
+
+# 判斷是否大於 0.5
+lpm_class <- ifelse(all_lpm_pred > 0.5, 1, 0)
+logit_class <- ifelse(all_logit_pred > 0.5, 1, 0)
+
+# 計算正確率
+lpm_accuracy <- mean(lpm_class == lasvegas$delinquent)
+logit_accuracy <- mean(logit_class == lasvegas$delinquent)
+
+cat("LPM Accuracy:   ", round(lpm_accuracy * 100, 2), "%\n")
+cat("Logit Accuracy: ", round(logit_accuracy * 100, 2), "%\n")
+```
+
+
+# h.
+不能用 0.5，因為「看錯」的代價是極度不對稱的
+如果銀行拒絕了一個好客戶（模型預測會違約，但其實不會），銀行的損失只是少賺了利息
+如果銀行放款給一個壞客戶（模型預測不會違約P<0.5，但結果違約了），銀行的損失是賠掉龐大的本金
+A Better Rule：因為放款給違約者的成本遠大於拒絕好客戶的機會成本，銀行的決策閾值應該要設得遠低於 0.5
