@@ -76,33 +76,5 @@ correct_logit <- mean(pred_class_logit == lasvegas$delinquent)
 correct_lpm
 correct_logit
 
-table(Predicted = pred_class_lpm, Actual = lasvegas$delinquent)
-table(Predicted = pred_class_logit, Actual = lasvegas$delinquent)
 
-
-# h. Train on first 500, test on second 500
-train <- lasvegas[1:500, ]
-test  <- lasvegas[501:1000, ]
-
-logit_train <- glm(delinquent ~ lvr + ref + insur + rate + amount + credit + term + arm,
-                   data = train, family = binomial(link = "logit"))
-
-test_prob <- predict(logit_train, newdata = test, type = "response")
-
-# 0.5 threshold
-test_pred_05 <- ifelse(test_prob > 0.5, 1, 0)
-mean(test_pred_05 == test$delinquent)
-
-# Try different thresholds
-thresholds <- seq(0.05, 0.95, by = 0.05)
-
-accuracy_by_threshold <- sapply(thresholds, function(cutoff) {
-  pred <- ifelse(test_prob > cutoff, 1, 0)
-  mean(pred == test$delinquent)})
-
-data.frame(threshold = thresholds, accuracy = accuracy_by_threshold)
-
-# Find threshold with highest accuracy
-thresholds[which.max(accuracy_by_threshold)]
-max(accuracy_by_threshold)
 
