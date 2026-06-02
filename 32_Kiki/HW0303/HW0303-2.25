@@ -1,0 +1,38 @@
+# 載入資料庫
+load(url("https://www.principlesofeconometrics.com/poe5/data/rdata/cex5_small.rdata"))
+
+# --- a. FOODAWAY 的直方圖與摘要統計 ---
+hist(cex5_small$foodaway, main="Histogram of FOODAWAY", xlab="FOODAWAY", col="lightblue")
+summary(cex5_small$foodaway)
+quantile(cex5_small$foodaway, probs = c(0.25, 0.75), na.rm = TRUE)
+
+# --- b. 不同學歷家庭的 FOODAWAY 統計 ---
+# subset 條件：advanced (高等學位), college (大學學位)
+print("--- Advanced Degree ---")
+summary(subset(cex5_small, advanced == 1)$foodaway)
+
+print("--- College Degree ---")
+summary(subset(cex5_small, college == 1)$foodaway)
+
+print("--- No Advanced or College Degree ---")
+summary(subset(cex5_small, advanced == 0 & college == 0)$foodaway)
+
+# --- c. ln(FOODAWAY) 的直方圖與摘要統計 ---
+# 在 R 語言中，log() 預設就是取自然對數 ln
+hist(log(cex5_small$foodaway), main="Histogram of ln(FOODAWAY)", xlab="ln(FOODAWAY)", col="lightgreen")
+summary(log(cex5_small$foodaway))
+
+# --- 修正 d. 估計對數-線性迴歸模型 ---
+# 改用 valid_data 來跑迴歸，避開 -Inf 的錯誤
+model_d <- lm(log(foodaway) ~ income, data = valid_data)
+summary(model_d)
+
+# --- e. 繪製散佈圖與擬合線 ---
+plot(valid_data$income, log(valid_data$foodaway),
+     main="ln(FOODAWAY) vs INCOME", xlab="INCOME (in $100s)", ylab="ln(FOODAWAY)", pch=20, col="darkgray")
+abline(model_d, col="red", lwd=2)
+
+# --- f. 繪製殘差圖 ---
+plot(valid_data$income, resid(model_d),
+     main="Residuals vs INCOME", xlab="INCOME", ylab="Residuals", pch=20, col="purple")
+abline(h = 0, col = "black", lty = 2, lwd=2)
