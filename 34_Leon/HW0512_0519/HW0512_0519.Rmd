@@ -1,0 +1,130 @@
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(plm)
+library(lmtest)
+library(dplyr)
+```
+
+# 載入資料
+
+```{r}
+load("~/Desktop/交大/計量/data/star.rda")
+# 看一下變數名稱
+names(star)
+str(star)
+```
+
+# (a) OLS 迴歸（無 fixed/random effects）
+```{r}
+model_a <- lm(readscore ~ small + aide + tchexper + boy + white_asian + freelunch,
+              data = star)
+summary(model_a)
+```
+
+---
+
+# (b) School Fixed Effects
+
+```{r}
+# 用 SCHID 當 cross-section identifier，ID 當 time identifier
+star_pdata <- pdata.frame(star, index = c("schid", "id"))
+
+model_b <- plm(readscore ~ small + aide + tchexper + boy + white_asian + freelunch,
+               data = star_pdata,
+               model = "within")
+summary(model_b)
+```
+
+# (c) 檢定 School Fixed Effects 的顯著性
+
+```{r}
+# F test：比較 pooled OLS 與 fixed effects 模型
+pFtest(model_b, model_a)
+```
+# (d) School Random Effects + LM 檢定
+
+```{r}
+model_d <- plm(readscore ~ small + aide + tchexper + boy + white_asian + freelunch,
+               data = star_pdata,
+               model = "random")
+summary(model_d)
+```
+
+```{r}
+# 直接用 panel data 跑
+plmtest(readscore ~ small + aide + tchexper + boy + white_asian + freelunch,
+        data = star_pdata, type = "bp")
+
+# 或對 RE 模型做
+plmtest(model_d, type = "bp")
+```
+
+> **可能與學校效果相關的變數**：`freelunch`（學校所在地區的社經背景）、`white_asian`（學校的人種組成）、`tchexper`（不同學校可能吸引不同經驗的老師）。這些變數在學校層級可能有系統性差異。
+
+---
+
+# (e) 變數逐一的 Hausman t-test
+
+```{r}
+# 取出 FE 與 RE 的係數與標準誤
+b_fe <- coef(model_b)
+b_re <- coef(model_d)
+se_fe <- sqrt(diag(vcov(model_b)))
+se_re <- sqrt(diag(vcov(model_d)))
+
+# RE 模型多了截距，把它拿掉再對齊
+b_re_match  <- b_re[names(b_fe)]
+se_re_match <- se_re[names(b_fe)]
+
+# 計算 t 統計量
+diff   <- b_fe - b_re_match
+var_d  <- se_fe^2 - se_re_match^2
+t_stat <- diff / sqrt(var_d)
+
+hausman_t <- data.frame(
+  variable = names(b_fe),
+  beta_FE  = b_fe,
+  beta_RE  = b_re_match,
+  diff     = diff,
+  se_diff  = sqrt(var_d),
+  t_stat   = t_stat,
+  p_value  = 2 * (1 - pnorm(abs(t_stat)))
+)
+hausman_t
+```
+# (f) Mundlak test
+
+建立每間學校的平均值，加入 random effects 模型，檢定這些平均值的係數是否聯合為 0。
+
+```{r}
+# 改用 pooling 模型（等價於 OLS）
+model_f <- plm(readscore ~ small + aide + tchexper + boy + white_asian + freelunch +
+                 small_mean + aide_mean + tchexper_mean + boy_mean +
+                 white_asian_mean + freelunch_mean,
+               data = star_mundlak_p,
+               model = "pooling")
+summary(model_f)
+
+library(car)
+linearHypothesis(model_f,
+                 c("small_mean = 0",
+                   "aide_mean = 0",
+                   "tchexper_mean = 0",
+                   "boy_mean = 0",
+                   "white_asian_mean = 0",
+                   "freelunch_mean = 0"))
+```
+
+```{r}
+# 聯合檢定六個校平均係數是否同時為 0
+library(car)
+linearHypothesis(model_f,
+                 c("small_mean = 0",
+                   "aide_mean = 0",
+                   "tchexper_mean = 0",
+                   "boy_mean = 0",
+                   "white_asian_mean = 0",
+                   "freelunch_mean = 0"))
+```
+
+> **Mundlak test 解讀**：若聯合檢定拒絕 H0（校平均係數同時為 0），代表解釋變數與學校未觀察異質性相關 → RE 估計不一致，應該用 FE。若無法拒絕，則 RE 是 OK 的。
