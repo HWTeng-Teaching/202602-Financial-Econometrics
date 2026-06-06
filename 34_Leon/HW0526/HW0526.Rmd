@@ -1,0 +1,178 @@
+---
+title: "Exercise 16.18：Las Vegas 房貸違約分析"
+output: html_document
+---
+
+```{r install-poedata, eval=FALSE}
+# 只需執行一次
+install.packages("remotes")
+remotes::install_github("ccolonescu/PoEdata")
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# 載入套件與資料
+
+```{r}
+library(PoEdata)
+library(sandwich)
+library(lmtest)
+
+data("lasvegas")
+cat("資料集維度：", dim(lasvegas), "\n")
+head(lasvegas[, c("delinquent", "lvr", "credit", "rate", "amount")])
+```
+
+# (a) 線性機率模型 (LPM) 與 White 穩健標準誤
+
+```{r}
+model.LPM <- lm(delinquent ~ lvr + ref + insur + rate + amount + credit + term + arm,
+                data = lasvegas)
+
+robust.LPM <- coeftest(model.LPM, vcov = vcovHC(model.LPM, type = "HC1"))
+robust.LPM
+```
+
+符號合理性：credit 為負（信用愈好違約愈低）、lvr 為正（槓桿愈高風險愈大）、rate 為正（利息壓力愈大愈易違約），皆符合直覺。
+
+# (b) Logit 模型估計與對比
+
+```{r}
+model.logit <- glm(delinquent ~ lvr + ref + insur + rate + amount + credit + term + arm,
+                   data = lasvegas,
+                   family = binomial(link = "logit"))
+summary(model.logit)
+```
+
+Logit 與 LPM 在所有核心變數的正負號與顯著性上一致，模型結構穩健。
+
+# (c) 第 500 與 1000 筆觀測值的違約機率預測
+
+```{r}
+obs_500_1000 <- lasvegas[c(500, 1000), ]
+
+pred.LPM.c   <- predict(model.LPM,   obs_500_1000)
+pred.logit.c <- predict(model.logit, obs_500_1000, type = "response")
+
+results.c <- data.frame(
+  Observation          = c(500, 1000),
+  Actual_Delinquent    = obs_500_1000$delinquent,
+  LPM_Predicted_Prob   = pred.LPM.c,
+  Logit_Predicted_Prob = pred.logit.c
+)
+results.c
+```
+
+# (d) 不同信用分數情境下的違約機率預測
+
+```{r}
+hist(lasvegas$credit,
+     breaks = 20, col = "skyblue", border = "white",
+     main = "Histogram of Credit Scores (CREDIT)",
+     xlab = "Credit Score", ylab = "Frequency")
+abline(v = c(500, 600, 700), col = "red", lty = 2, lwd = 2)
+```
+
+```{r}
+scenarios.d <- data.frame(
+  credit = c(500, 600, 700),
+  amount = 2.5, lvr = 80, rate = 8, term = 30,
+  ref = 0, insur = 0, arm = 0
+)
+
+prob.LPM.d   <- predict(model.LPM,   scenarios.d)
+prob.logit.d <- predict(model.logit, scenarios.d, type = "response")
+
+results.d <- data.frame(
+  Credit_Score      = c(500, 600, 700),
+  LPM_Probability   = prob.LPM.d,
+  Logit_Probability = prob.logit.d
+)
+results.d
+```
+
+# (e) 信用分數的邊際效應
+
+```{r}
+me.LPM     <- coef(model.LPM)["credit"]
+p.logit.d  <- results.d$Logit_Probability
+me.logit.d <- coef(model.logit)["credit"] * p.logit.d * (1 - p.logit.d)
+
+results.e <- data.frame(
+  Credit_Score          = c(500, 600, 700),
+  LPM_Marginal_Effect   = rep(me.LPM, 3),
+  Logit_Marginal_Effect = me.logit.d
+)
+results.e
+```
+
+LPM 邊際效應為常數；Logit 因 P(1−P) 而呈非線性，信用分數位於中段時邊際效應最大。
+
+# (f) 不同貸款成數 (LVR) 的違約機率對比
+
+```{r}
+hist(lasvegas$lvr,
+     breaks = 25, col = "#70AD47", border = "white",
+     main = "Histogram of Loan-to-Value Ratio (LVR)",
+     xlab = "Loan-to-Value Ratio (LVR %)",
+     ylab = "Number of Borrowers (Frequency)")
+abline(v = c(20, 80), col = "red", lty = 2, lwd = 2.5)
+text(x = c(26, 74), y = c(120, 120),
+     labels = c("Low LVR (20%)", "High LVR (80%)"),
+     col = "darkred", font = 2)
+```
+
+```{r}
+scenarios.f <- data.frame(
+  lvr    = c(20, 80),
+  credit = 600,
+  amount = 2.5, rate = 8, term = 30,
+  ref = 0, insur = 0, arm = 0
+)
+
+prob.LPM.f   <- predict(model.LPM,   scenarios.f)
+prob.logit.f <- predict(model.logit, scenarios.f, type = "response")
+
+results.f <- data.frame(
+  LVR_Level         = c("低槓桿 (20%)", "高槓桿 (80%)"),
+  LPM_Probability   = prob.LPM.f,
+  Logit_Probability = prob.logit.f
+)
+results.f
+```
+
+# (g) 全樣本內預測準確率（門檻 = 0.5）
+
+```{r}
+fitted.LPM   <- predict(model.LPM)
+fitted.logit <- predict(model.logit, type = "response")
+
+table.LPM   <- table(True = lasvegas$delinquent,
+                     Predicted = as.numeric(fitted.LPM   >= 0.5))
+table.logit <- table(True = lasvegas$delinquent,
+                     Predicted = as.numeric(fitted.logit >= 0.5))
+
+accuracy.LPM   <- sum(diag(table.LPM))   / sum(table.LPM)
+accuracy.logit <- sum(diag(table.logit)) / sum(table.logit)
+
+cat("LPM 全樣本分類準確率：",   round(accuracy.LPM   * 100, 2), "%\n")
+cat("Logit 全樣本分類準確率：", round(accuracy.logit * 100, 2), "%\n")
+```
+
+# (h) 樣本外授信決策：0.5 門檻是好的決策法則嗎？
+
+```{r}
+train_data <- lasvegas[1:500, ]
+test_data  <- lasvegas[501:1000, ]
+
+model.h   <- glm(delinquent ~ lvr + ref + insur + rate + amount + credit + term + arm,
+                 data = train_data,
+                 family = binomial(link = "logit"))
+pred.test <- predict(model.h, test_data, type = "response")
+
+table.h.05 <- table(True = test_data$delinquent,
+                    Predicted = as.numeric(pred.test >= 0.5))
+table.h.05
+```
