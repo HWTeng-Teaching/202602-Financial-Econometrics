@@ -1,0 +1,276 @@
+---
+title: "HW0526_314707031"
+author: "James"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+Sys.setenv(LANGUAGE = "en")
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r packages}
+library(AER)
+library(sandwich)
+library(lmtest)
+library(POE5Rdata)
+library(knitr)
+```
+
+# Chapter 16: Qualitative and Limited Dependent Variable Models
+
+# Exercise 16.1: Logit and Probit for Transportation Choice
+
+This exercise uses the `transport` data (Examples 16.1, 16.2, 16.4). `AUTO` = 1 if a commuter drives, and `DTIME` is (bus time $-$ auto time) in 10-minute units. We estimate the logit, probit, and linear probability (LPM) models.
+
+```{r load-transport}
+data("transport")
+logit_m  <- glm(auto ~ dtime, family = binomial(link = "logit"),  data = transport)
+probit_m <- glm(auto ~ dtime, family = binomial(link = "probit"), data = transport)
+lpm_m    <- lm(auto ~ dtime, data = transport)
+
+round(coef(logit_m), 4)
+round(coef(probit_m), 4)
+round(coef(lpm_m), 4)
+```
+
+The logit estimates are $\tilde\gamma_1+\tilde\gamma_2 DTIME=-0.2376+0.5311\,DTIME$, matching the values given in the exercise.
+
+## 16.1(a) — Logit probability at DTIME = 1
+
+```{r ex161-a}
+p_logit_1 <- predict(logit_m, data.frame(dtime = 1), type = "response")
+cat("Logit P(AUTO=1 | DTIME=1) =", round(p_logit_1, 4), "\n")
+```
+
+**Explanation.**
+Evaluating the logistic cdf at $\tilde\gamma_1+\tilde\gamma_2(1)=-0.2376+0.5311=0.2935$ gives $\Lambda(0.2935)\approx0.573$. With a commute time difference of 10 minutes (bus 10 minutes longer), the estimated probability of driving is about 57%.
+
+## 16.1(b) — Probit probability at DTIME = 1
+
+```{r ex161-b}
+p_probit_1 <- predict(probit_m, data.frame(dtime = 1), type = "response")
+cat("Probit P(AUTO=1 | DTIME=1) =", round(p_probit_1, 4), "\n")
+cat("Logit  P(AUTO=1 | DTIME=1) =", round(p_logit_1, 4), "\n")
+```
+
+**Explanation.**
+The probit model gives $\Phi(-0.0644+0.3000)=\Phi(0.2356)\approx0.593$. This is very close to the logit estimate of $0.573$: although the logit and probit coefficients differ in scale, the two models produce almost identical fitted probabilities.
+
+## 16.1(c) — Marginal effect of +10 minutes at DTIME = 3
+
+```{r ex161-c}
+g <- coef(logit_m)
+me_logit_c <- dlogis(g[1] + g[2] * 3) * g[2]   # derivative at DTIME = 3
+me_lpm     <- coef(lpm_m)["dtime"]             # constant LPM slope
+cat("Logit marginal effect at DTIME=3 :", round(me_logit_c, 4), "\n")
+cat("LPM   marginal effect (constant) :", round(me_lpm, 4), "\n")
+```
+
+**Explanation.**
+Because `DTIME` is measured in 10-minute units, a 10-minute increase corresponds to a one-unit change, so the marginal effect is the slope of the probability curve, $\lambda(\tilde\gamma_1+\tilde\gamma_2 DTIME)\,\tilde\gamma_2$, evaluated at $DTIME=3$. The logit marginal effect is about $0.087$, somewhat larger than the constant LPM slope of $0.070$, because at $DTIME=3$ the probability curve is still fairly steep.
+
+## 16.1(d) — Marginal effect of $-$10 minutes at DTIME = $-$5
+
+```{r ex161-d}
+gp <- coef(probit_m)
+me_logit_d  <- dlogis(g[1]  + g[2]  * (-5)) * g[2]
+me_probit_d <- dnorm(gp[1] + gp[2] * (-5)) * gp[2]
+cat("Logit  marginal effect at DTIME=-5 :", round(me_logit_d, 4), "\n")
+cat("Probit marginal effect at DTIME=-5 :", round(me_probit_d, 4), "\n")
+```
+
+**Explanation.**
+An individual whose commute by car is 50 minutes longer has $DTIME=-5$. At this point the predicted probability of driving is very low, so the probability curve is flat and the marginal effects are small: about $0.026$ for logit and $0.035$ for probit. The two models again give similar answers, with the marginal effect much smaller than near the middle of the curve.
+
+# Exercise 16.4: Logit Likelihood — A Small Example
+
+This repeats Example 16.3 with the logit model. The three observations are $y=(1,1,0)$ with $x=(1.5,0.6,0.7)$. The logit MLEs are $\tilde\gamma_1+\tilde\gamma_2 x=-1.836+3.021x$, with a maximized log-likelihood of $-1.612$.
+
+```{r ex164-data}
+y <- c(1, 1, 0)
+x <- c(1.5, 0.6, 0.7)
+g1 <- -1.836; g2 <- 3.021
+Lambda <- function(z) 1 / (1 + exp(-z))    # logistic cdf
+```
+
+## 16.4(a) — Probability that y = 1 when x = 1.5
+
+```{r ex164-a}
+p1 <- Lambda(g1 + g2 * 1.5)
+cat("P(y=1 | x=1.5) =", round(p1, 4), "\n")
+```
+
+**Explanation.**
+At $x=1.5$ the index is $-1.836+3.021(1.5)=2.6955$, and $\Lambda(2.6955)\approx0.937$. The estimated probability that this first individual has $y=1$ is about 0.94.
+
+## 16.4(b) — Prediction using the 0.5 threshold
+
+```{r ex164-b}
+pred1 <- ifelse(p1 > 0.5, 1, 0)
+cat("Predicted y =", pred1, " ; actual y =", y[1], "\n")
+```
+
+**Explanation.**
+Since the predicted probability $0.937>0.5$, we predict $\hat y=1$. This matches the actual outcome $y_1=1$, so the model correctly predicts the first observation.
+
+## 16.4(c) — Likelihood at $(\gamma_1,\gamma_2)=(-1,2)$ vs. at the MLE
+
+```{r ex164-c}
+likelihood <- function(b1, b2) {
+  p <- Lambda(b1 + b2 * x)
+  prod(p^y * (1 - p)^(1 - y))
+}
+L_alt <- likelihood(-1, 2)
+L_mle <- likelihood(g1, g2)
+cat("Likelihood at (-1, 2)        =", round(L_alt, 5), "\n")
+cat("Likelihood at the MLE        =", round(L_mle, 5), "\n")
+cat("log-likelihood at the MLE    =", round(log(L_mle), 4), "\n")
+```
+
+**Explanation.**
+The likelihood is the product $\prod \Lambda(\cdot)^{y_i}[1-\Lambda(\cdot)]^{1-y_i}$. Evaluated at $(\gamma_1,\gamma_2)=(-1,2)$ it is smaller than the value at the maximum likelihood estimates, and $\ln L$ at the MLE equals $-1.612$ as stated. The likelihood at the MLE is **larger**, which is exactly what "maximum likelihood" means: no other parameter values give a higher probability of the observed sample.
+
+## 16.4(d) and 16.4(e) — True/False
+
+**16.4(d) True.** The likelihood function (16.14) is a product of the probabilities $\Lambda(\cdot)$ and $1-\Lambda(\cdot)$. Each factor lies strictly between 0 and 1, so their product is also strictly between 0 and 1.
+
+**16.4(e) True.** The log-likelihood is the natural log of a number between 0 and 1. The logarithm of any value in $(0,1)$ is negative, so the log-likelihood is always negative.
+
+# Exercise 16.18: Mortgage Delinquency in Las Vegas (Computational)
+
+This exercise uses the `lasvegas` data (1000 single-family mortgages, Las Vegas 2008). `DELINQUENT` = 1 if the borrower missed at least three payments. The data are read from the CSV stored in this folder.
+
+```{r load-lasvegas}
+lasvegas <- read.csv("lasvegas.csv")
+str(lasvegas)
+```
+
+## 16.18(a) — Linear probability model (White robust SE)
+
+```{r ex1618-a}
+lpm <- lm(delinquent ~ lvr + ref + insur + rate + amount + credit + term,
+          data = lasvegas)
+coeftest(lpm, vcov = vcovHC(lpm, type = "HC1"))
+```
+
+**Explanation.**
+The signs are economically reasonable: a higher loan-to-value ratio (`lvr`) and a higher interest `rate` raise the probability of delinquency, while having mortgage `insur`ance and a higher `credit` score sharply lower it. `ref` (refinance) and a longer `term` reduce delinquency. White heteroskedasticity-robust standard errors are used because the LPM error variance is inherently heteroskedastic.
+
+## 16.18(b) — Logit model
+
+```{r ex1618-b}
+logit <- glm(delinquent ~ lvr + ref + insur + rate + amount + credit + term,
+             family = binomial(link = "logit"), data = lasvegas)
+summary(logit)
+```
+
+**Explanation.**
+The logit coefficients have the **same signs** as the LPM coefficients, and the same variables are statistically significant (`lvr`, `insur`, `rate`, `credit` in particular). The logit coefficients are not directly comparable in magnitude to the LPM slopes because they describe effects on the log-odds, not on the probability directly.
+
+## 16.18(c) — Predictions for observations 500 and 1000
+
+```{r ex1618-c}
+obs <- c(500, 1000)
+pred_lpm   <- predict(lpm)[obs]
+pred_logit <- predict(logit, type = "response")[obs]
+kable(data.frame(Observation = obs,
+                 LPM = round(pred_lpm, 4),
+                 Logit = round(pred_logit, 4),
+                 Actual = lasvegas$delinquent[obs]),
+      caption = "Predicted probability of delinquency")
+```
+
+**Explanation.**
+For observation 500 both models give a low predicted probability of delinquency (around 0.10–0.15), while for observation 1000 both give roughly 0.57–0.60. The two models deliver similar fitted probabilities. Interpreted as probabilities, observation 500 is unlikely to be delinquent, whereas observation 1000 is about as likely to be delinquent as not.
+
+## 16.18(d) — Probability of delinquency by credit score
+
+```{r ex1618-d, fig.width=6, fig.height=4}
+hist(lasvegas$credit, breaks = 30, col = "grey80",
+     main = "Histogram of CREDIT", xlab = "Credit score")
+
+base <- data.frame(lvr = 80, ref = 0, insur = 0, rate = 8,
+                   amount = 2.5, credit = c(500, 600, 700), term = 30)
+p_lpm_d   <- predict(lpm, base)
+p_logit_d <- predict(logit, base, type = "response")
+kable(data.frame(CREDIT = base$credit,
+                 LPM = round(p_lpm_d, 4),
+                 Logit = round(p_logit_d, 4)),
+      caption = "P(delinquent) for a $250,000 loan at LVR=80, rate=8, term=30")
+```
+
+**Explanation.**
+As the credit score rises from 500 to 700, the predicted probability of delinquency falls sharply under both models. The LPM imposes a constant decline (a straight line in `credit`), while the logit produces a nonlinear, S-shaped decline. The two sets of probabilities are similar in the middle of the range but can differ at the extremes, where the logit keeps probabilities inside $[0,1]$.
+
+## 16.18(e) — Marginal effect of CREDIT
+
+```{r ex1618-e}
+b_credit_lpm   <- coef(lpm)["credit"]                  # constant
+xb <- predict(logit, base)                             # logit index at each credit
+me_logit_credit <- dlogis(xb) * coef(logit)["credit"]  # logit marginal effect
+kable(data.frame(CREDIT = base$credit,
+                 ME_LPM = round(rep(b_credit_lpm, 3), 6),
+                 ME_Logit = round(me_logit_credit, 6)),
+      caption = "Marginal effect of CREDIT on P(delinquent)")
+```
+
+**Explanation.**
+The LPM marginal effect of `credit` is constant (about $-0.0006$): each one-point increase in the credit score lowers the delinquency probability by the same amount regardless of the starting score. The logit marginal effect varies with the credit score — it is largest where the predicted probability is near 0.5 and smaller at very high or very low scores — which is the more realistic behaviour.
+
+## 16.18(f) — Probability of delinquency by loan-to-value ratio
+
+```{r ex1618-f, fig.width=6, fig.height=4}
+hist(lasvegas$lvr, breaks = 30, col = "grey80",
+     main = "Histogram of LVR", xlab = "Loan-to-value ratio (%)")
+
+base_f <- data.frame(lvr = c(20, 80), ref = 0, insur = 0, rate = 8,
+                     amount = 2.5, credit = 600, term = 30)
+p_lpm_f   <- predict(lpm, base_f)
+p_logit_f <- predict(logit, base_f, type = "response")
+kable(data.frame(LVR = base_f$lvr,
+                 LPM = round(p_lpm_f, 4),
+                 Logit = round(p_logit_f, 4)),
+      caption = "P(delinquent) at CREDIT=600 for LVR = 20 vs 80")
+```
+
+**Explanation.**
+A higher loan-to-value ratio raises the probability of delinquency under both models, since borrowers with little equity are more likely to default. At `LVR` = 20 the probability is low, and at `LVR` = 80 it is noticeably higher. The LPM and logit predictions are again broadly similar over this range.
+
+## 16.18(g) — Percentage of correct predictions
+
+```{r ex1618-g}
+pred_class_lpm   <- ifelse(predict(lpm) > 0.5, 1, 0)
+pred_class_logit <- ifelse(predict(logit, type = "response") > 0.5, 1, 0)
+correct_lpm   <- mean(pred_class_lpm   == lasvegas$delinquent) * 100
+correct_logit <- mean(pred_class_logit == lasvegas$delinquent) * 100
+cat("LPM   correct predictions:", round(correct_lpm, 2), "%\n")
+cat("Logit correct predictions:", round(correct_logit, 2), "%\n")
+```
+
+**Explanation.**
+Using a 0.5 threshold, both models classify about 85% of the mortgages correctly, and the logit is marginally better. Because only about 20% of loans are actually delinquent, a naive rule that predicts "never delinquent" would already be about 80% correct, so the models add only modest predictive power at this threshold.
+
+## 16.18(h) — A better decision rule for the loan officer
+
+```{r ex1618-h}
+train <- lasvegas[1:500, ]
+test  <- lasvegas[501:1000, ]
+logit_tr <- glm(delinquent ~ lvr + ref + insur + rate + amount + credit + term,
+                family = binomial, data = train)
+phat <- predict(logit_tr, test, type = "response")
+
+# correct predictions on the holdout sample at several thresholds
+thr <- c(0.2, 0.3, 0.5)
+acc <- sapply(thr, function(t) mean(ifelse(phat > t, 1, 0) == test$delinquent) * 100)
+# proportion of true delinquents that are caught (sensitivity)
+sens <- sapply(thr, function(t)
+  mean(ifelse(phat > t, 1, 0)[test$delinquent == 1] == 1) * 100)
+kable(data.frame(Threshold = thr,
+                 Accuracy = round(acc, 2),
+                 Delinquents_caught = round(sens, 2)),
+      caption = "Holdout (obs 501-1000) performance by threshold")
+```
+
+**Explanation.**
+Estimating the logit on the first 500 loans and predicting the second 500 shows that the 0.5 threshold maximises overall accuracy but catches very few of the actual delinquents, because delinquency is relatively rare. As a loan officer who especially wants to avoid lending to borrowers who will not repay, a **lower threshold** (for example 0.2 or 0.3) is a better rule: it flags more of the true delinquents (higher sensitivity) at the cost of rejecting some borrowers who would have repaid. The best threshold therefore depends on the relative cost of approving a bad loan versus rejecting a good one, not simply on overall accuracy.

@@ -1,0 +1,212 @@
+---
+title: "HW0519_314707031"
+author: "James"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+Sys.setenv(LANGUAGE = "en")
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r packages}
+library(plm)
+library(car)
+library(lmtest)
+library(POE5Rdata)
+library(knitr)
+```
+
+# Chapter 15: Panel Data
+
+# Exercise 15.6: NLS Panel of Young Women (1987 & 1988)
+
+This exercise uses the `nls_panel` data, restricted to the years 1987 and 1988 ($N=716$ women, $T=2$). The model relates $\ln(WAGE)$ to experience, its square, and indicators for living in the south and union membership.
+
+```{r load-nls}
+data("nls_panel")
+nls2 <- subset(nls_panel, year %in% c(87, 88))
+nls2$year <- factor(nls2$year)
+```
+
+## 15.6(a) — Year-by-year OLS
+
+```{r nls-a}
+ols_1987 <- lm(lwage ~ exper + exper2 + south + union,
+               data = subset(nls2, year == 87))
+ols_1988 <- lm(lwage ~ exper + exper2 + south + union,
+               data = subset(nls2, year == 88))
+summary(ols_1987)
+summary(ols_1988)
+```
+
+**Explanation.**
+Columns (1) and (2) of Table 15.10 are reproduced here. The 1987 and 1988 estimates are very similar in sign and magnitude. By estimating each year separately we are implicitly assuming that the regression parameters are **the same for all individuals within a year** (no individual heterogeneity), and we allow the parameters to differ across the two years. Each cross-section regression ignores the panel structure and any unobserved individual effect.
+
+## 15.6(b) — Panel model assumptions
+
+The panel data regression model is
+$$\ln(WAGE_{it})=\beta_1+\beta_2 EXPER_{it}+\beta_3 EXPER2_{it}+\beta_4 SOUTH_{it}+\beta_5 UNION_{it}+u_i+e_{it}$$
+
+**Explanation.**
+Unlike the separate year-by-year regressions in part (a), this model pools both years and the coefficients $\beta_2,\dots,\beta_5$ are assumed **constant across individuals and across time**. It adds an individual-specific term $u_i$ that captures unobserved, time-invariant heterogeneity (ability, motivation, etc.). The error is now decomposed into the individual effect $u_i$ and the idiosyncratic error $e_{it}$, which is the key difference from the simple pooled/cross-section models.
+
+## 15.6(c) — Fixed effects
+
+```{r nls-c}
+nls_pd <- pdata.frame(nls2, index = c("id", "year"))
+fe <- plm(lwage ~ exper + exper2 + south + union,
+          data = nls_pd, model = "within")
+summary(fe)
+
+# OLS (pooled) for comparison
+ols_pool <- lm(lwage ~ exper + exper2 + south + union, data = nls2)
+round(cbind(FE = coef(fe),
+            OLS_pooled = coef(ols_pool)[names(coef(fe))]), 4)
+```
+
+**Explanation.**
+The fixed effects (within) estimates correspond to column (3) of Table 15.10. Compared with the pooled OLS estimates, the coefficient that changes the most (apart from the intercept) is `south`: it becomes considerably larger in magnitude under fixed effects, because FE uses only within-person variation. The `exper` coefficient also falls noticeably, while `union` is somewhat smaller.
+
+## 15.6(d) — Test for individual effects
+
+```{r nls-d}
+N <- 716          # number of individuals
+T <- 2            # time periods
+K <- 4            # number of slope coefficients
+df1 <- N - 1
+df2 <- N * T - N - K
+crit <- qf(0.99, df1, df2)
+cat("F statistic (given) = 11.68\n")
+cat("Degrees of freedom = (", df1, ",", df2, ")\n")
+cat("1% critical value =", round(crit, 4), "\n")
+```
+
+**Explanation.**
+Under the null hypothesis (15.19) that there are no individual differences, the $F$ statistic has $(N-1, NT-N-K) = (715, 712)$ degrees of freedom. The 1% critical value is about $1.19$. Since the given $F = 11.68$ is far larger than the critical value, we **reject** the null hypothesis: there are significant individual differences, so the fixed effects specification is preferred over pooled OLS.
+
+## 15.6(f) — Random effects and the Hausman test
+
+```{r nls-f}
+re <- plm(lwage ~ exper + exper2 + south + union,
+          data = nls_pd, model = "random")
+summary(re)
+
+round(cbind(FE = coef(fe),
+            RE = coef(re)[names(coef(fe))]), 4)
+
+# Hausman test (equation 15.36) comparing FE and RE
+phtest(fe, re)
+```
+
+**Explanation.**
+The random effects estimates match column (5). Apart from the intercept, the `south` coefficient differs most between RE and FE. The Hausman test compares the consistent FE estimator with the efficient RE estimator; the FE column (3) is the correct comparison because FE is consistent whether or not $u_i$ is correlated with the regressors. A large p-value (here we fail to reject) means there is no significant difference between the two sets of estimates, so the random effects estimator is appropriate and we gain efficiency by using it.
+
+# Exercise 15.20: STAR Experiment (Reading Scores)
+
+This exercise uses the kindergarten `star` data. `READSCORE` is related to class-type indicators and student/teacher characteristics, with **school** as the grouping (cross-section) unit and `ID` as the "time" identifier.
+
+```{r load-star}
+data("star")
+star2 <- star
+names(star2)[names(star2) == "id"] <- "student"   # avoid plm name clash
+star_pd <- pdata.frame(star2, index = c("schid", "student"))
+fml <- readscore ~ small + aide + tchexper + boy + white_asian + freelunch
+```
+
+## 15.20(a) — Pooled regression (no effects)
+
+```{r star-a}
+star_ols <- lm(fml, data = star2)
+summary(star_ols)
+```
+
+**Explanation.**
+Students in **small** classes score significantly higher in reading (positive, significant `small` coefficient), so small classes help. A teacher's `aide` has a small, statistically insignificant effect. More experienced teachers (`tchexper`) raise scores significantly. The student's sex matters — `boy` has a negative coefficient (boys score lower) — and race/background matter: `white_asian` is positive and `freelunch` (a poverty proxy) is strongly negative.
+
+## 15.20(b) — School fixed effects
+
+```{r star-b}
+star_fe <- plm(fml, data = star_pd, model = "within")
+summary(star_fe)
+round(cbind(OLS = coef(star_ols)[names(coef(star_fe))],
+            FE  = coef(star_fe)), 4)
+```
+
+**Explanation.**
+Adding school fixed effects controls for everything that differs across schools. The `small`, `tchexper`, `boy`, `white_asian`, and `freelunch` effects remain of the same sign and broadly similar size, so the main conclusions are unchanged. The `freelunch` and `white_asian` coefficients shrink somewhat because part of their cross-section variation reflects differences **between** schools, which the fixed effects now absorb.
+
+## 15.20(c) — Significance of school fixed effects
+
+```{r star-c}
+star_pool <- plm(fml, data = star_pd, model = "pooling")
+pFtest(star_fe, star_pool)
+```
+
+**Explanation.**
+The $F$ test strongly rejects the null that all school effects are zero, so the school fixed effects are jointly significant. Including significant fixed effects would have **little** influence on the remaining coefficient estimates only if those regressors were (nearly) uncorrelated with the school effects — i.e., if the explanatory variables were balanced across schools, as one expects from the random assignment within schools in this experiment.
+
+## 15.20(d) — School random effects and the LM test
+
+```{r star-d}
+star_re <- plm(fml, data = star_pd, model = "random")
+summary(star_re)
+round(cbind(OLS = coef(star_ols)[names(coef(star_fe))],
+            FE  = coef(star_fe),
+            RE  = coef(star_re)[names(coef(star_fe))]), 4)
+
+# Breusch-Pagan LM test for the presence of random effects
+plmtest(star_pool, type = "bp")
+```
+
+**Explanation.**
+The random effects estimates lie close to the FE and pooled estimates. The LM test strongly rejects the null of no random effects, confirming that the school-level variance component is important. Variables that might be correlated with the school effects are the school-composition variables such as `freelunch` and `white_asian`, since poorer or differently-composed schools may differ systematically; if so, RE would be inconsistent.
+
+## 15.20(e) — t-test comparing FE and RE coefficients (eq. 15.36)
+
+```{r star-e}
+b_fe <- coef(star_fe)
+b_re <- coef(star_re)[names(b_fe)]
+se_fe <- sqrt(diag(vcov(star_fe)))
+se_re <- sqrt(diag(vcov(star_re))[names(b_fe)])
+
+t_stat <- (b_fe - b_re) / sqrt(se_fe^2 - se_re^2)
+p_val  <- 2 * pnorm(-abs(t_stat))
+
+kable(data.frame(b_FE = round(b_fe, 4), b_RE = round(b_re, 4),
+                 t = round(t_stat, 3), p_value = round(p_val, 4)),
+      caption = "Hausman contrast t-tests (equation 15.36)")
+```
+
+**Explanation.**
+Equation (15.36) computes, for each coefficient, $t=(b_{FE}-b_{RE})/\sqrt{\widehat{\operatorname{var}}(b_{FE})-\widehat{\operatorname{var}}(b_{RE})}$. At the 5% level the coefficients on `small`, `aide`, `tchexper`, `white_asian`, and `freelunch` show **no** significant difference between FE and RE (small t-statistics), implying the random effects estimator is consistent for them and there is no evidence the regressors are correlated with the school effects. For `boy`, the variance difference can be tiny or even negative, which makes the test undefined/uninformative — a reminder that this contrast test is fragile for variables with little within-school variation.
+
+## 15.20(f) — Mundlak test
+
+```{r star-f}
+# School averages (group means) of the time-varying regressors
+star2$small_m       <- ave(star2$small,       star2$schid)
+star2$aide_m        <- ave(star2$aide,        star2$schid)
+star2$tchexper_m    <- ave(star2$tchexper,    star2$schid)
+star2$boy_m         <- ave(star2$boy,         star2$schid)
+star2$white_asian_m <- ave(star2$white_asian, star2$schid)
+star2$freelunch_m   <- ave(star2$freelunch,   star2$schid)
+
+star_mundlak_pd <- pdata.frame(star2, index = c("schid", "student"))
+# The school means are constant within each school (zero within-variation),
+# so the auxiliary regression is fit by pooled OLS with school-clustered SEs.
+mundlak <- plm(readscore ~ small + aide + tchexper + boy + white_asian +
+                 freelunch + small_m + aide_m + tchexper_m + boy_m +
+                 white_asian_m + freelunch_m,
+               data = star_mundlak_pd, model = "pooling")
+V_cluster <- vcovHC(mundlak, method = "arellano", cluster = "group")
+
+# Joint test that all the school-mean coefficients are zero
+linearHypothesis(mundlak,
+  c("small_m = 0", "aide_m = 0", "tchexper_m = 0", "boy_m = 0",
+    "white_asian_m = 0", "freelunch_m = 0"),
+  vcov. = V_cluster)
+```
+
+**Explanation.**
+The Mundlak approach augments the random effects model with the school averages of the regressors. If the unobserved school effect is uncorrelated with the explanatory variables (the RE assumption), the coefficients on these school-mean terms should all be zero. The joint Wald test of that hypothesis is the Mundlak test; rejection indicates correlation between the regressors and the school heterogeneity, favouring the fixed effects estimator, while failure to reject supports the use of random effects.

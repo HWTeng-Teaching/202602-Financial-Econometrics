@@ -1,0 +1,200 @@
+---
+title: "HW0505_314707031"
+author: "James"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+Sys.setenv(LANGUAGE = "en")
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r packages}
+library(AER)
+library(car)
+library(POE5Rdata)
+library(knitr)
+```
+
+# Chapter 11: Simultaneous Equations
+
+# Exercise 11.24: Fulton Fish Market
+
+This exercise revisits the supply and demand model for fish at the Fulton Fish Market (Example 11.2), using the data file `fultonfish`. The structural demand equation (11.13) and supply equation (11.14) are
+
+$$\ln(QUAN_t)=\alpha_1+\alpha_2\ln(PRICE_t)+\alpha_3 MON_t+\alpha_4 TUE_t+\alpha_5 WED_t+\alpha_6 THU_t+e_{dt}$$
+$$\ln(QUAN_t)=\beta_1+\beta_2\ln(PRICE_t)+\beta_3 STORMY_t+e_{st}$$
+
+In this data set `lprice` is $\ln(PRICE)$ and `lquan` is $\ln(QUAN)$. We add the indicator `mixed` (poor but not stormy weather) to the supply equation.
+
+```{r load-fish}
+data("fultonfish")
+```
+
+## 11.24(a)
+
+```{r fish-a}
+# Reduced form for ln(PRICE), equation (11.16) augmented with MIXED
+rf_price <- lm(lprice ~ mon + tue + wed + thu + stormy + mixed,
+               data = fultonfish)
+summary(rf_price)
+
+# Is MIXED significant at the 5% level?
+coef(summary(rf_price))["mixed", ]
+
+# Joint significance of STORMY and MIXED
+linearHypothesis(rf_price, c("stormy = 0", "mixed = 0"))
+```
+
+**Explanation.**
+The reduced-form equation for `lprice` now includes the two weather indicators `stormy` and `mixed` as the supply shift variables. The individual t-test shows whether `mixed` is significant at the 5% level (look at its p-value). The joint F test for `stormy = mixed = 0` is the relevance test for the instruments used to identify the demand equation. If the F-value exceeds 10, the instruments are strong enough that two-stage least squares of the demand equation can be trusted.
+
+## 11.24(b)
+
+```{r fish-b}
+# Demand equation (11.13) estimated by 2SLS using STORMY and MIXED as IVs
+demand_iv <- ivreg(lquan ~ lprice + mon + tue + wed + thu |
+                     mon + tue + wed + thu + stormy + mixed,
+                   data = fultonfish)
+summary(demand_iv)
+```
+
+**Explanation.**
+Here the demand equation is estimated by two-stage least squares, treating `lprice` as endogenous and using `stormy` and `mixed` as the excluded instruments. The coefficient on `lprice` is the price elasticity of demand, which is expected to be negative. Compared with Table 11.5 (which uses only `stormy`), adding `mixed` as a second instrument leaves the elasticity estimate close to the original value but can change its precision.
+
+## 11.24(c)
+
+```{r fish-c}
+# Sargan test of the overidentifying restriction (validity of the surplus IV)
+summary(demand_iv, diagnostics = TRUE)$diagnostics
+```
+
+**Explanation.**
+Because there are two instruments (`stormy`, `mixed`) for one endogenous variable (`lprice`), the demand equation is overidentified by one restriction, so the validity of the "surplus" instrument can be tested. The Sargan test regresses the 2SLS residuals on all instruments; under the null all instruments are valid. A large p-value (failure to reject) means there is no evidence that `mixed` is an invalid instrument.
+
+## 11.24(d)
+
+```{r fish-d}
+# In the reduced form from (a), test joint significance of the day indicators
+linearHypothesis(rf_price,
+                 c("mon = 0", "tue = 0", "wed = 0", "thu = 0"))
+```
+
+**Explanation.**
+To estimate the **supply** equation by 2SLS we need the demand-side shift variables — the daily indicators — to be jointly significant in the reduced form for `lprice`. The F test for `mon = tue = wed = thu = 0` checks this. As is typical with this data set, the day-of-week indicators are jointly insignificant, so they are weak instruments for `lprice`. Consequently we **cannot** estimate the supply equation by 2SLS with confidence, even though the demand equation can be estimated reliably.
+
+# Exercise 11.28: Truffle Supply and Demand with Price on the Left
+
+This exercise uses the `truffles` data (Example 11.1). The original demand and supply equations (11.11) and (11.12) are
+
+$$Q_i=\alpha_1+\alpha_2 P_i+\alpha_3 PS_i+\alpha_4 DI_i+e_{di}, \qquad
+Q_i=\beta_1+\beta_2 P_i+\beta_3 PF_i+e_{si}$$
+
+```{r load-truffle}
+data("truffles")
+```
+
+## 11.28(a)
+
+Rewriting the demand and supply equations with $P$ on the left-hand side gives the inverse system
+
+$$\text{Demand: } P_i=\alpha_1^{*}+\alpha_2^{*}Q_i+\alpha_3^{*}PS_i+\alpha_4^{*}DI_i+u_{di}$$
+$$\text{Supply: } P_i=\beta_1^{*}+\beta_2^{*}Q_i+\beta_3^{*}PF_i+u_{si}$$
+
+**Anticipated signs.**
+In the inverse **demand** equation the slope $\alpha_2^{*}$ should be **negative** (a downward-sloping demand curve), while $\alpha_3^{*}$ (price of the substitute $PS$) and $\alpha_4^{*}$ (income $DI$) should be **positive**, because both shift demand outward and raise price. In the inverse **supply** equation the slope $\beta_2^{*}$ should be **positive** (an upward-sloping supply curve), while $\beta_3^{*}$ (price of the factor $PF$) should be **negative**: a higher input cost shifts supply back, so at any given quantity a higher price is required, but holding $Q$ fixed the coefficient on $PF$ is expected to be negative.
+
+## 11.28(b)
+
+```{r truffle-b}
+# Inverse demand by 2SLS: Q endogenous, IVs are the exogenous PS, DI, PF
+inv_demand <- ivreg(p ~ q + ps + di | ps + di + pf, data = truffles)
+summary(inv_demand)
+
+# Inverse supply by 2SLS: Q endogenous, IVs are PS, DI, PF
+inv_supply <- ivreg(p ~ q + pf | ps + di + pf, data = truffles)
+summary(inv_supply)
+```
+
+**Explanation.**
+Both inverse equations are estimated by two-stage least squares, treating quantity `q` as the endogenous regressor and using the exogenous variables `ps`, `di`, and `pf` as instruments. The estimated slope on `q` is negative in the demand equation and positive in the supply equation, consistent with downward-sloping demand and upward-sloping supply, and the coefficients are generally significantly different from zero.
+
+## 11.28(c)
+
+```{r truffle-c}
+# Price elasticity of demand "at the means" from the inverse demand estimates
+a2 <- coef(inv_demand)["q"]      # dP/dQ along the inverse demand curve
+Pbar <- mean(truffles$p)
+Qbar <- mean(truffles$q)
+
+# elasticity of demand = (dQ/dP)*(P/Q) = (1/a2)*(Pbar/Qbar)
+elas_demand <- (1 / a2) * (Pbar / Qbar)
+cat("dP/dQ (slope) =", a2, "\n")
+cat("P-bar =", Pbar, "  Q-bar =", Qbar, "\n")
+cat("Price elasticity of demand at the means =", elas_demand, "\n")
+```
+
+**Explanation.**
+The inverse demand equation gives $dP/dQ=\hat\alpha_2^{*}$, so $dQ/dP=1/\hat\alpha_2^{*}$. The price elasticity of demand at the means is $(dQ/dP)\times(\bar P/\bar Q)$. The result is about $-1.27$, i.e. negative as expected and (in absolute value) greater than one, indicating that truffle demand is price elastic at the sample means.
+
+## 11.28(d)
+
+```{r truffle-d, fig.width=6, fig.height=5}
+# Evaluate at the given exogenous values
+DI_star <- 3.5; PF_star <- 23; PS_star <- 22
+
+bd <- coef(inv_demand)   # inverse demand coefficients
+bs <- coef(inv_supply)   # inverse supply coefficients
+
+# P as a function of Q for each curve, holding exogenous variables fixed
+demand_P <- function(Q) bd["(Intercept)"] + bd["q"]*Q + bd["ps"]*PS_star + bd["di"]*DI_star
+supply_P <- function(Q) bs["(Intercept)"] + bs["q"]*Q + bs["pf"]*PF_star
+
+Qseq <- seq(0, 40, length.out = 200)
+plot(Qseq, demand_P(Qseq), type = "l", col = "blue", lwd = 2,
+     xlab = "Q (quantity)", ylab = "P (price)",
+     main = "Truffle Supply and Demand (P on vertical axis)")
+lines(Qseq, supply_P(Qseq), col = "red", lwd = 2)
+legend("topright", legend = c("Demand", "Supply"),
+       col = c("blue", "red"), lwd = 2)
+```
+
+**Explanation.**
+The curves are drawn with $P$ on the vertical axis and $Q$ on the horizontal axis, using $DI^{*}=3.5$, $PF^{*}=23$, $PS^{*}=22$. The demand curve slopes downward and the supply curve slopes upward, intersecting at the market equilibrium.
+
+## 11.28(e)
+
+```{r truffle-e}
+# Equilibrium from part (d): set demand_P(Q) = supply_P(Q) and solve for Q
+# (bd0 + bd_q*Q) = (bs0 + bs_q*Q)  with intercepts already including exog terms
+bd0 <- bd["(Intercept)"] + bd["ps"]*PS_star + bd["di"]*DI_star
+bs0 <- bs["(Intercept)"] + bs["pf"]*PF_star
+
+Q_eq <- (bs0 - bd0) / (bd["q"] - bs["q"])
+P_eq <- demand_P(Q_eq)
+cat("Equilibrium from structural curves:  Q =", Q_eq, " P =", P_eq, "\n")
+
+# Compare with reduced-form predictions (Table 11.2): regress P and Q on all exogenous
+rf_Q <- lm(q ~ ps + di + pf, data = truffles)
+rf_P <- lm(p ~ ps + di + pf, data = truffles)
+newx <- data.frame(ps = PS_star, di = DI_star, pf = PF_star)
+Q_rf <- predict(rf_Q, newx)
+P_rf <- predict(rf_P, newx)
+cat("Equilibrium from reduced forms:      Q =", Q_rf, " P =", P_rf, "\n")
+```
+
+**Explanation.**
+Setting the two estimated inverse curves equal gives the equilibrium $(Q,P)$ implied by the structural 2SLS estimates. The reduced-form equations predict $P$ and $Q$ directly from the exogenous variables at the same values $DI^{*},PF^{*},PS^{*}$. The two sets of equilibrium values are very close, confirming the internal consistency between the structural and reduced-form representations.
+
+## 11.28(f)
+
+```{r truffle-f}
+# OLS of the inverse demand and supply equations
+ols_demand <- lm(p ~ q + ps + di, data = truffles)
+ols_supply <- lm(p ~ q + pf, data = truffles)
+summary(ols_demand)
+summary(ols_supply)
+```
+
+**Explanation.**
+Estimating the inverse equations by OLS ignores the simultaneity between $P$ and $Q$, so `q` is correlated with the error term and the OLS estimates are biased and inconsistent. The signs are broadly the same as the 2SLS estimates, but the magnitude of the slope on `q` differs because OLS does not correct for endogeneity. The 2SLS estimates in part (b) are the preferred ones.
